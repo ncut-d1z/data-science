@@ -1,0 +1,30 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/db_init.sql:/docker-entrypoint-initdb.d/db_init.sql
+      - ./postgres/data:/data
+
+  hbase:
+    image: harisekhon/hbase
+    ports:
+      - "2181:2181"
+      - "9090:9090"
+    volumes:
+      - .:/app
+
+  spark:
+    build: .
+    container_name: spark
+    depends_on:
+      - postgres
+      - hbase
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: sleep infinity

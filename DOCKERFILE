@@ -1,0 +1,48 @@
+FROM python:3.10-slim
+
+# ---------- 基础工具 ----------
+RUN apt-get update && apt-get install -y \
+    openjdk-11-jdk \
+    curl \
+    gcc \
+    libpq-dev \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------- Spark ----------
+ENV SPARK_VERSION=3.5.1
+ENV HADOOP_VERSION=3
+
+# 设置 Spark 包的基础 URL 和文件名
+ENV SPARK_TGZ_FILENAME=spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
+ENV SPARK_BASE_URL=https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}
+ENV SPARK_FULL_URL=${SPARK_BASE_URL}/${SPARK_TGZ_FILENAME}
+
+# **下载并校验 Spark**
+RUN set -eux; \
+    # 1. 下载 .tgz 压缩包
+    curl -f -L -O "${SPARK_FULL_URL}"; \
+    # 2. 下载对应的 .sha512 校验文件
+    curl -f -L -O "${SPARK_FULL_URL}.sha512"; \
+    # 3. 处理校验文件格式并验证
+    # Apache 发布的 .sha512 文件格式为 "SHA512 (filename) = hash"，需提取纯哈希值
+    sha512sum --check <( awk '{print $NF"  '$SPARK_TGZ_FILENAME'"}' ${SPARK_TGZ_FILENAME}.sha512 ); \
+    # 4. 校验通过后，解压到 /opt 目录
+    tar -xz -f "$SPARK_TGZ_FILENAME" -C /opt; \
+    # 5. 清理下载的临时文件
+    rm -f "$SPARK_TGZ_FILENAME" "$SPARK_TGZ_FILENAME.sha512";
+
+ENV SPARK_HOME=/opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}
+ENV PATH=$SPARK_HOME/bin:$PATH
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+
+# ---------- Python 依赖 ----------
+RUN pip install --no-cache-dir \
+    numpy \
+    pandas \
+    matplotlib \
+    psycopg2-binary \
+    happybase \
+    pyspark
+
+WORKDIR /app
