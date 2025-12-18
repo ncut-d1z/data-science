@@ -19,4 +19,10 @@ agg15 = df.groupBy(
     avg('speed').alias('avg_speed_15min')
 )
 
-agg15.show()
+# agg15.show()
+
+agg15.coalesce(1) \
+    .write \
+    .mode("overwrite") \
+    .option("header", "true") \
+    .csv("/app/spark_result/agg.csv")

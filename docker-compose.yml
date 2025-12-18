@@ -1,30 +1,32 @@
-version: '3.8'
 services:
   postgres:
-    image: postgres:14
+    image: postgres:14-alpine
+    container_name: postgres
     environment:
       POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./data:/app/data
+      # 容器首次启动时，会自动执行 `/docker-entrypoint-initdb.d/` 目录下的 所有 .sql / .sh 文件
+      # 把 `./postgres/` 挂载到 `/docker-entrypoint-initdb.d`
+      - ./postgres:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
-    volumes:
-      - ./postgres/db_init.sql:/docker-entrypoint-initdb.d/db_init.sql
-      - ./postgres/data:/data
 
-  hbase:
-    image: harisekhon/hbase
-    ports:
-      - "2181:2181"
-      - "9090:9090"
+  hadoop:
+    build:
+      context: ./hadoop
+      args:
+        - HADOOP_VERSION=3.3.6
+        - ZOOKEEPER_VERSION=3.7.2
+        - HBASE_VERSION=2.5.13
+        - SPARK_VERSION=3.5.7
+        - SPARK_HADOOP_VERSION=3
     volumes:
-      - .:/app
-
-  spark:
-    build: .
-    container_name: spark
+      - ./hadoop:/app
+    container_name: hadoop
     depends_on:
       - postgres
-      - hbase
-    volumes:
-      - .:/app
     working_dir: /app
-    command: sleep infinity
+    ports:
+      - "2181:2181"
+      - "16010:16010"
