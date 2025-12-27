@@ -57,9 +57,9 @@ jps | grep QuorumPeerMain
 # 为 HBase 准备磁盘空间
 su - hadoop
 # 递归创建目录
-hdfs dfs -mkdir -p /home/hbase/data/hbase
+hdfs dfs -mkdir -p /hbase
 # 将该目录及其父目录的权限交给 hbase（最内层必须给 hbase）
-hdfs dfs -chown -R hbase:hbase /home/hbase/data/hbase
+hdfs dfs -chown -R hbase:hbase /hbase
 # 登出 hadoop 用户
 exit
 
@@ -98,6 +98,11 @@ jps | grep RESTServer
 
 # 为 HBase 建表（该任务只能由 root 用户执行）
 bash /app/hbase_schema.sh
+# 如果建表时，报错：
+#   ERROR: KeeperErrorCode = NoNode for /hbase/master
+# 那就执行
+#   jps | grep HMaster
+#   vi $HBASE_HOME/logs/hbase-hbase-master-$(uname -n).log
 
 echo "HBase 建表工作完成"
 
@@ -107,6 +112,9 @@ echo "Spark 服务已启动"
 #   starting org.apache.spark.deploy.master.Master, logging to /opt/spark/logs/spark-spark-org.apache.spark.deploy.master.Master-1-c5cfad4f139d.out
 #   localhost: Warning: Permanently added 'localhost' (ED25519) to the list of known hosts.
 #   localhost: starting org.apache.spark.deploy.worker.Worker, logging to /opt/spark/logs/spark-spark-org.apache.spark.deploy.worker.Worker-1-c5cfad4f139d.out
+
+# 检查日志： vi $SPARK_HOME/logs/spark-spark-org.apache.spark.deploy.master.Master-1-$(uname -n).out
+# 检查日志： vi $SPARK_HOME/logs/spark-spark-org.apache.spark.deploy.worker.Worker-1-$(uname -n).out
 
 su -s /bin/bash spark -c "bash /app/spark_run.sh"
 echo "数据分析工作完成"
