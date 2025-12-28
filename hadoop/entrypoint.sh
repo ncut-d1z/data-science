@@ -118,8 +118,3 @@ echo "Spark 服务已启动"
 
 su -s /bin/bash spark -c "bash /app/spark_run.sh"
 echo "数据分析工作完成"
-
-# 保持容器运行
-tail -f /dev/null
-
-# nc -z localhost 2181
