@@ -19,3 +19,4 @@ chmod 700 $SPARK_SSH
 ssh-keygen -t rsa -C 'rsa key for spark' -N '' -P '' -f $SPARK_SSH/id_rsa
 cat $SPARK_SSH/id_rsa.pub >> $SPARK_SSH/authorized_keys
 chmod 600 $SPARK_SSH/authorized_keys
+chown -R spark:spark $SPARK_SSH
