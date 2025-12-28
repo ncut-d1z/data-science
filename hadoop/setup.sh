@@ -20,7 +20,7 @@ apt-get install -y \
     libpq-dev \
     python3 python3-pip python3-dev \
     openssh-server openssh-client \
-    netcat net-tools
+    net-tools
 
 mkdir -p /var/run/sshd
 sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config

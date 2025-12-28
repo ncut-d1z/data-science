@@ -27,7 +27,7 @@ RUN sed -i 's@http://.*archive.ubuntu.com@http://mirrors.aliyun.com@g' /etc/apt/
         # 用于 hadoop 跨结点通信
         openssh-server openssh-client \
         # 用于端口检查
-        netcat net-tools
+        net-tools
 
 RUN mkdir -p /var/run/sshd && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config && \
