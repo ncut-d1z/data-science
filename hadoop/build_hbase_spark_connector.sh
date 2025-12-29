@@ -1,0 +1,262 @@
+#!/bin/bash
+
+# ==============================================================================
+# 脚本名称: build_hbase_spark_connector.sh
+# 功能描述: 自动检测/安装依赖，下载 HBase Connectors 源码，按环境编译，自动部署
+# 操作系统: 适配 Ubuntu (Debian系)，支持自动 apt-get 安装
+# ==============================================================================
+
+# --- 配置项 ---
+REPO_URL="https://github.com/apache/hbase-connectors.git"
+WORK_DIR="/tmp/hbase_connector_build_ws"
+TARGET_DIR="/opt/spark/jars"  # 默认部署路径，如果没有写权限会自动回退到当前目录
+CUSTOM_HBASE_VERSION="2.4.17" # 如果无法自动检测，使用此默认值
+
+# --- 颜色输出工具 ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+log_info() { echo -e "${BLUE}[INFO] $(date '+%H:%M:%S') > $1${NC}"; }
+log_succ() { echo -e "${GREEN}[SUCCESS] $(date '+%H:%M:%S') > $1${NC}"; }
+log_warn() { echo -e "${YELLOW}[WARN] $(date '+%H:%M:%S') > $1${NC}"; }
+log_err() { echo -e "${RED}[ERROR] $(date '+%H:%M:%S') > $1${NC}"; }
+
+# 标记是否执行过 apt-get update
+APT_UPDATED=false
+
+# ==============================================================================
+# 1. 智能依赖检查与安装 (Ubuntu/Debian 专用)
+# ==============================================================================
+ensure_apt_update() {
+    if [ "$APT_UPDATED" = "false" ]; then
+        log_info "Updating apt package list..."
+        sudo apt-get update -y
+        APT_UPDATED=true
+    fi
+}
+
+check_and_install() {
+    local cmd_name="$1"     # 命令名称，如 mvn
+    local pkg_name="$2"     # 包名称，如 maven
+    local display_name="$3" # 显示名称，如 Maven
+
+    if ! command -v "$cmd_name" &> /dev/null; then
+        log_warn "$display_name ($cmd_name) not found."
+        log_info "Attempting to install $pkg_name via apt-get..."
+
+        ensure_apt_update
+
+        if sudo apt-get install -y "$pkg_name"; then
+            log_succ "$display_name installed successfully."
+        else
+            log_err "Failed to install $pkg_name. Please install it manually."
+            exit 1
+        fi
+    else
+        log_succ "$display_name is already installed."
+    fi
+}
+
+check_tools() {
+    log_info "Checking build tools on Ubuntu 24.04..."
+
+    # 1. 检查 Git
+    check_and_install "git" "git" "Git"
+
+    # 2. 检查 Maven
+    check_and_install "mvn" "maven" "Maven"
+
+    # 3. 检查 Java (目标: OpenJDK 11)
+    # Spark 3.x 通常在 Java 8/11/17 上运行，日志显示你用的是 Java 11
+    if ! command -v java &> /dev/null; then
+        log_warn "Java not found. Installing OpenJDK 11 to match standard Spark env..."
+        ensure_apt_update
+        sudo apt-get install -y openjdk-11-jdk
+
+        # 验证安装
+        if command -v java &> /dev/null; then
+            log_succ "Java 11 installed."
+            # 设置 JAVA_HOME 以防 Maven 找不到
+            export JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
+            export PATH=$JAVA_HOME/bin:$PATH
+        else
+            log_err "Java installation failed."
+            exit 1
+        fi
+    else
+        log_succ "Java is already installed ($(java -version 2>&1 | head -n 1))."
+    fi
+}
+
+# ==============================================================================
+# 2. 自动检测环境版本
+# ==============================================================================
+detect_versions() {
+    log_info "Detecting environment versions..."
+
+    # --- 检测 Spark 和 Scala 版本 ---
+    if command -v spark-submit &> /dev/null; then
+        SPARK_VERSION_RAW=$(spark-submit --version 2>&1)
+
+        # 提取 Spark 版本 (例如 3.4.1)
+        DETECTED_SPARK_VER=$(echo "$SPARK_VERSION_RAW" | grep -oP 'version \K[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+        # 提取 Scala 版本 (例如 2.12)
+        # 很多 Spark 3.x 输出中包含 "Using Scala version 2.12.18"
+        DETECTED_SCALA_VER=$(echo "$SPARK_VERSION_RAW" | grep -oP 'Scala version \K[0-9]+\.[0-9]+' | head -1)
+    else
+        log_warn "spark-submit not found in PATH."
+    fi
+
+    # 设置默认值
+    SPARK_VER=${DETECTED_SPARK_VER:-"3.2.1"}
+    SCALA_BINARY_VER=${DETECTED_SCALA_VER:-"2.12"} # 默认为 2.12 (Spark 3.x 标准)
+
+    # --- 检测 HBase 版本 ---
+    # 如果环境变量 HBASE_VERSION 存在则使用，否则尝试 hbase 命令，否则用默认
+    if [ -n "$HBASE_VERSION" ]; then
+        HBASE_VER="$HBASE_VERSION"
+    elif command -v hbase &> /dev/null; then
+        HBASE_VER=$(hbase version 2>&1 | head -n 1 | awk '{print $2}')
+    else
+        HBASE_VER="$CUSTOM_HBASE_VERSION"
+    fi
+
+    log_info "----------------------------------------"
+    log_info "Build Configuration:"
+    log_info "  Spark Version : $SPARK_VER"
+    log_info "  Scala Binary  : $SCALA_BINARY_VER"
+    log_info "  HBase Version : $HBASE_VER"
+    log_info "----------------------------------------"
+}
+
+# ==============================================================================
+# 3. 下载/更新源码
+# ==============================================================================
+prepare_source() {
+    log_info "Preparing source code at $WORK_DIR..."
+
+    if [ -d "$WORK_DIR" ]; then
+        log_warn "Directory exists. Updating repo..."
+        cd "$WORK_DIR" || exit
+        git checkout master
+        git pull
+    else
+        mkdir -p "$WORK_DIR"
+        git clone "$REPO_URL" "$WORK_DIR"
+        cd "$WORK_DIR" || exit
+    fi
+}
+
+# ==============================================================================
+# 4. 执行 Maven 编译
+# ==============================================================================
+compile_project() {
+    log_info "Starting Maven build..."
+    log_info "Target module: spark/hbase-spark"
+
+    # 显式设置 JAVA_HOME，如果它是刚才安装的
+    if [ -d "/usr/lib/jvm/java-11-openjdk-amd64" ] && [ -z "$JAVA_HOME" ]; then
+        export JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
+    fi
+
+    # 构造 Maven 命令
+    # -pl spark/hbase-spark : 只构建 spark 连接器模块
+    # -am : 同时构建依赖的模块
+    # -DskipTests : 跳过测试，加快速度
+    # -Dspark.version : 指定 Spark 版本
+    # -Dscala.binary.version : 指定 Scala 主版本
+    # -Dhbase.version : 指定 HBase 版本
+
+    CMD="mvn clean package -DskipTests \
+        -pl spark/hbase-spark -am \
+        -Dspark.version=$SPARK_VER \
+        -Dscala.binary.version=$SCALA_BINARY_VER \
+        -Dhbase.version=$HBASE_VER"
+
+    log_info "Executing: $CMD"
+
+    if $CMD; then
+        log_succ "Build Success!"
+    else
+        log_err "Build Failed."
+        exit 1
+    fi
+}
+
+# ==============================================================================
+# 5. 部署与验证
+# ==============================================================================
+deploy_artifact() {
+    log_info "Locating built artifact..."
+
+    # 查找构建出的 jar 包 (排除 source 和 javadoc)
+    JAR_PATH=$(find "$WORK_DIR/spark/hbase-spark/target" -name "hbase-spark-*.jar" | grep -v "sources" | grep -v "javadoc" | head -n 1)
+
+    if [ -z "$JAR_PATH" ]; then
+        log_err "No jar file found in target directory."
+        exit 1
+    fi
+
+    JAR_NAME=$(basename "$JAR_PATH")
+    log_succ "Found JAR: $JAR_NAME"
+
+    # 检查目标目录权限
+    if [ ! -d "$TARGET_DIR" ]; then
+        log_warn "Directory $TARGET_DIR does not exist. Creating it..."
+        sudo mkdir -p "$TARGET_DIR"
+    fi
+
+    # 确定目标路径
+    if [ ! -w "$TARGET_DIR" ]; then
+        log_warn "No write permission for $TARGET_DIR. Trying with sudo..."
+        sudo cp "$JAR_PATH" "$TARGET_DIR/$JAR_NAME"
+    else
+        cp "$JAR_PATH" "$TARGET_DIR/$JAR_NAME"
+    fi
+
+    FINAL_PATH="$TARGET_DIR/$JAR_NAME"
+
+    log_info "Copying to $FINAL_PATH ..."
+    if [ -f "$FINAL_PATH" ]; then
+        log_succ "Deployed to $FINAL_PATH"
+    else
+        log_err "Failed to deploy jar."
+        exit 1
+    fi
+
+    # 验证 format
+    log_info "Verifying package format..."
+    CLASS_PATH=$(jar tf "$FINAL_PATH" | grep "DefaultSource.class" | head -n 1)
+    if [ -n "$CLASS_PATH" ]; then
+        PACKAGE_PATH=${CLASS_PATH%/*}
+        FORMAT_STRING=$(echo "$PACKAGE_PATH" | tr '/' '.')
+
+        echo ""
+        echo -e "${GREEN}======================================================${NC}"
+        echo -e "${GREEN} BUILD & DEPLOY FINISHED ${NC}"
+        echo -e "${GREEN}======================================================${NC}"
+        echo -e "Jar Location  : ${YELLOW}$FINAL_PATH${NC}"
+        echo -e "Usage in Code : ${YELLOW}.format(\"$FORMAT_STRING\")${NC}"
+        echo -e "${GREEN}======================================================${NC}"
+        echo ""
+    else
+        log_warn "Could not determine DefaultSource path automatically. Please check the jar manually."
+    fi
+}
+
+# ==============================================================================
+# 主流程
+# ==============================================================================
+main() {
+    check_tools
+    detect_versions
+    prepare_source
+    compile_project
+    deploy_artifact
+}
+
+main
