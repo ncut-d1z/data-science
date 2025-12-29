@@ -123,36 +123,3 @@ spark-submit "${COMMON_ARGS[@]}" spark_preprocess.py
 spark-submit "${COMMON_ARGS[@]}" spark_query.py
 spark-submit "${COMMON_ARGS[@]}" spark_aggregate.py
 spark-submit "${COMMON_ARGS[@]}" spark_analysis.py
-
-spark-submit \
-  --master local[*] \
-  --packages org.apache.hbase.connectors.spark:hbase-spark:1.0.0,org.postgresql:postgresql:42.6.0 \
-  --repositories https://maven.aliyun.com/repository/public \
-  --conf spark.hadoop.hbase.zookeeper.quorum=hbase \
-  --conf spark.hadoop.hbase.zookeeper.property.clientPort=2181 \
-  spark_preprocess.py
-
-
-spark-submit \
-  --master local[*] \
-  --packages org.apache.hbase.connectors.spark:hbase-spark:1.0.0 \
-  --repositories https://maven.aliyun.com/repository/public \
-  --conf spark.hadoop.hbase.zookeeper.quorum=hbase \
-  --conf spark.hadoop.hbase.zookeeper.property.clientPort=2181 \
-  spark_query.py
-
-spark-submit \
-  --master local[*] \
-  --packages org.apache.hbase.connectors.spark:hbase-spark:1.0.0 \
-  --repositories https://maven.aliyun.com/repository/public \
-  --conf spark.hadoop.hbase.zookeeper.quorum=hbase \
-  --conf spark.hadoop.hbase.zookeeper.property.clientPort=2181 \
-  spark_aggregate.py
-
-spark-submit \
-  --master local[*] \
-  --packages org.apache.hbase.connectors.spark:hbase-spark:1.0.0 \
-  --repositories https://maven.aliyun.com/repository/public \
-  --conf spark.hadoop.hbase.zookeeper.quorum=hbase \
-  --conf spark.hadoop.hbase.zookeeper.property.clientPort=2181 \
-  spark_analysis.py
