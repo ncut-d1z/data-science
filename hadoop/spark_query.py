@@ -42,4 +42,4 @@ result.coalesce(1) \
     .write \
     .mode("overwrite") \
     .option("header", "true") \
-    .csv("/app/spark_result/query.csv")
+    .csv("./result/query.csv")

@@ -56,4 +56,4 @@ corr_df.coalesce(1) \
     .write \
     .mode("overwrite") \
     .option("header", "true") \
-    .csv("/app/spark_result/corr.csv")
+    .csv("./result/corr.csv")

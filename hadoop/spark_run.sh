@@ -29,14 +29,14 @@ mkdir -p /app/preprocess
 
 # 候选包列表（按优先级）
 PACKAGES=(
-    "org.apache.hbase.connectors.spark:hbase-spark:1.0.0"
     "org.apache.hbase:hbase-spark:2.5.0"
+    "org.apache.hbase.connectors.spark:hbase-spark:1.0.0"
 )
 
 # 候选仓库列表（按优先级）
 REPOSITORIES=(
-    "https://maven.aliyun.com/repository/public"
     "https://repo1.maven.org/maven2"
+    "https://maven.aliyun.com/repository/public"
 )
 
 check_package_in_repo() {

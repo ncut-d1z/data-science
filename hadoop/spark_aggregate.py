@@ -25,4 +25,4 @@ agg15.coalesce(1) \
     .write \
     .mode("overwrite") \
     .option("header", "true") \
-    .csv("/app/spark_result/agg.csv")
+    .csv("./result/agg.csv")

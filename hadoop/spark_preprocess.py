@@ -5,6 +5,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+
 from pyspark.sql import SparkSession, Window
 from pyspark.sql import functions as F
 from pyspark.sql.types import StringType, DoubleType, TimestampType
@@ -53,7 +55,7 @@ def main():
     # 以便并行读取。这里简化为单任务读取。
     df = spark.read \
         .format("jdbc") \
-        .option("url", "jdbc:postgresql://postgres:5432/traffic_db") \
+        .option("url", "jdbc:postgresql://localhost:5432/traffic_db") \
         .option("dbtable", "raw_traffic_data") \
         .option("user", "postgres") \
         .option("password", "postgres") \
@@ -101,7 +103,7 @@ def main():
     # 采样 10% 的数据用于画图，足以反映分布情况，且不会撑爆内存
     plot_df = df.select("volume", "speed").sample(fraction=0.1, seed=42).toPandas()
 
-    output_dir = '/app/preprocess'
+    output_dir = './result'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -109,7 +111,7 @@ def main():
         plt.figure()
         # pandas boxplot 需要过滤掉 None 值否则可能报错
         plot_df.boxplot(column=col_name)
-        plt.title(f'{col_name} 异常值 (Sampled)')
+        plt.title(f'BoxPlot {col_name} (Sampled)')
         path_fig = os.path.join(output_dir, f'fig-{col_name}-exception-spark.png')
         print('saving figure to:', os.path.abspath(path_fig))
         plt.savefig(path_fig, dpi=150, bbox_inches='tight')
