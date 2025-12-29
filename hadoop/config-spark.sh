@@ -4,8 +4,8 @@
 set -eux  # 遇到错误立即退出
 
 # 创建必要目录并设置权限
-mkdir -p ${SPARK_CONF} \
-    && chown -R spark:spark ${SPARK_CONF}
+mkdir -p ${SPARK_CONF}
+chown -R spark:spark ${SPARK_CONF}
 
 cat > "${SPARK_CONF}/spark-env.sh" << EOF
 export JAVA_HOME=$JAVA_HOME

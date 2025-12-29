@@ -7,6 +7,10 @@ set -eux  # 遇到错误立即退出
 mkdir -p \
         /home/hbase/data/hbase \
         /home/hbase/logs
+chown -R hbase:hbase /home/hbase/data/hbase
+chown -R hbase:hbase /home/hbase/logs
+mkdir -p /opt/hbase/logs
+chown -R hbase:hbase /opt/hbase/logs
 
 # 在 hbase-env.sh 中显式指定不管理 ZK
 echo "export JAVA_HOME=${JAVA_HOME}" >> ${HBASE_CONF}/hbase-env.sh

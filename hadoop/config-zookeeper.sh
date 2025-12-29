@@ -5,7 +5,9 @@ set -eux
 
 # 创建数据目录
 mkdir -p $ZOO_DAT_DIR
+chown -R zookeeper:zookeeper $ZOO_DAT_DIR
 mkdir -p $ZOO_LOG_DIR
+chown -R zookeeper:zookeeper $ZOO_LOG_DIR
 
 # 创建配置文件 zoo.cfg
 cat > "${ZOOKEEPER_HOME}/conf/zoo.cfg" << EOF
