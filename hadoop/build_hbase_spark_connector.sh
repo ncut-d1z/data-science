@@ -210,6 +210,33 @@ inspect_repo_structure() {
 }
 
 # ==============================================================================
+# 4.5 [关键] 自动补丁修复 SLF4J 报错
+# ==============================================================================
+patch_source_code() {
+    log_info "--- [PATCHING] Fixing SLF4J compatibility for Spark 3.x ---"
+
+    # 定位 Logging.scala 文件
+    # 路径通常是: spark/hbase-spark/src/main/scala/org/apache/hadoop/hbase/spark/Logging.scala
+    LOGGING_FILE=$(find "$WORK_DIR/$TARGET_MODULE_REL_PATH" -name "Logging.scala")
+
+    if [ -f "$LOGGING_FILE" ]; then
+        log_info "Patching file: $LOGGING_FILE"
+
+        # 1. 注释掉 org.slf4j.impl.StaticLoggerBinder 的 import
+        sed -i 's/^import org.slf4j.impl.StaticLoggerBinder/\/\/ import org.slf4j.impl.StaticLoggerBinder/' "$LOGGING_FILE"
+
+        # 2. 替换 StaticLoggerBinder.getSingleton... 调用
+        # 原理：直接给 binderClass 赋值一个假字符串，绕过对 StaticLoggerBinder 的调用
+        # 这样 isLog4j12() 会返回 false，这对 Spark 3.x (Log4j2) 是安全的
+        sed -i 's/val binderClass = StaticLoggerBinder.getSingleton.getLoggerFactoryClassStr/val binderClass = "unknown"/g' "$LOGGING_FILE"
+
+        log_succ "Patch applied successfully."
+    else
+        log_warn "Logging.scala not found. Skipping patch (Build might fail if error persists)."
+    fi
+}
+
+# ==============================================================================
 # 5. 编译项目 (加入 -s 参数)
 # ==============================================================================
 compile_project() {
@@ -251,7 +278,7 @@ compile_project() {
 }
 
 # ==============================================================================
-# 5. 部署与验证
+# 6. 部署与验证
 # ==============================================================================
 deploy_artifact() {
     log_info "Locating built artifact..."
@@ -322,8 +349,9 @@ main() {
     check_network_and_config
     check_tools
     detect_versions
-    prepare_source
+    # prepare_source
     inspect_repo_structure
+    patch_source_code
     compile_project
     deploy_artifact
 }
