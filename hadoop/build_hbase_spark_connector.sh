@@ -2,8 +2,8 @@
 
 # ==============================================================================
 # 脚本名称: build_hbase_spark_connector.sh
-# 功能描述: 自动检测/安装依赖，下载 HBase Connectors 源码，按环境编译，自动部署
-# 操作系统: 适配 Ubuntu (Debian系)，支持自动 apt-get 安装
+# 功能描述: 自动检测依赖，探查仓库结构，动态定位 Spark 模块并编译
+# 适配系统: Ubuntu 24.04 (支持自动 apt-get)
 # ==============================================================================
 
 # --- 配置项 ---
@@ -28,12 +28,12 @@ log_err() { echo -e "${RED}[ERROR] $(date '+%H:%M:%S') > $1${NC}"; }
 APT_UPDATED=false
 
 # ==============================================================================
-# 1. 智能依赖检查与安装 (Ubuntu/Debian 专用)
+# 1. 依赖检查 (Ubuntu 24.04)
 # ==============================================================================
 ensure_apt_update() {
     if [ "$APT_UPDATED" = "false" ]; then
         log_info "Updating apt package list..."
-        sudo apt-get update -y
+        sudo apt-get update -y > /dev/null
         APT_UPDATED=true
     fi
 }
@@ -70,25 +70,10 @@ check_tools() {
     check_and_install "mvn" "maven" "Maven"
 
     # 3. 检查 Java (目标: OpenJDK 11)
-    # Spark 3.x 通常在 Java 8/11/17 上运行，日志显示你用的是 Java 11
-    if ! command -v java &> /dev/null; then
-        log_warn "Java not found. Installing OpenJDK 11 to match standard Spark env..."
-        ensure_apt_update
-        sudo apt-get install -y openjdk-11-jdk
-
-        # 验证安装
-        if command -v java &> /dev/null; then
-            log_succ "Java 11 installed."
-            # 设置 JAVA_HOME 以防 Maven 找不到
-            export JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
-            export PATH=$JAVA_HOME/bin:$PATH
-        else
-            log_err "Java installation failed."
-            exit 1
-        fi
-    else
-        log_succ "Java is already installed ($(java -version 2>&1 | head -n 1))."
-    fi
+    check_and_install "java" "openjdk-11-jdk" "Java"
+    export JAVA_HOME=$(java -XshowSettings:properties -version 2>&1 | grep 'java.home' | awk '{print $3}')
+    log_succ "Using JAVA_HOME=$JAVA_HOME"
+    export PATH=$JAVA_HOME/bin:$PATH
 }
 
 # ==============================================================================
@@ -142,6 +127,8 @@ prepare_source() {
     if [ -d "$WORK_DIR" ]; then
         log_warn "Directory exists. Updating repo..."
         cd "$WORK_DIR" || exit
+        git reset --hard
+        git clean -fd
         git checkout master
         git pull
     else
@@ -152,16 +139,54 @@ prepare_source() {
 }
 
 # ==============================================================================
-# 4. 执行 Maven 编译
+# 4. 新增需求：探查仓库结构与动态定位
+# ==============================================================================
+inspect_repo_structure() {
+    echo ""
+    log_info "--- [INSPECTION] Scanning Repository Structure ---"
+
+    cd "$WORK_DIR" || exit
+
+    # 1. 打印所有包含 pom.xml 的目录（深度为 3），展示项目结构
+    echo -e "${YELLOW}Available Maven Modules (Directory/pom.xml):${NC}"
+    find . -maxdepth 4 -name "pom.xml" -not -path '*/.*' | sort | sed 's|/pom.xml||' | sed 's|^\./||'
+
+    echo ""
+    log_info "Searching for 'hbase-spark' module..."
+
+    # 2. 动态寻找 hbase-spark 所在的目录
+    # -type d : 找目录
+    # -name "hbase-spark" : 名字叫 hbase-spark
+    FOUND_PATH=$(find . -type d -name "hbase-spark" -not -path '*/.*' | head -n 1)
+
+    if [ -z "$FOUND_PATH" ]; then
+        log_err "Could not find any directory named 'hbase-spark' in the repo."
+        log_err "The repository structure might have changed drastically."
+        exit 1
+    fi
+
+    # 去掉开头的 ./ (例如 ./spark/hbase-spark -> spark/hbase-spark)
+    TARGET_MODULE_REL_PATH=${FOUND_PATH#./}
+
+    log_succ "Found target module at: ${YELLOW}${TARGET_MODULE_REL_PATH}${NC}"
+
+    # 导出变量供下一步使用
+    export TARGET_MODULE_REL_PATH
+    echo ""
+}
+
+# ==============================================================================
+# 5. 编译项目
 # ==============================================================================
 compile_project() {
     log_info "Starting Maven build..."
-    log_info "Target module: spark/hbase-spark"
+    log_info "Target module: $TARGET_MODULE_REL_PATH"
 
-    # 显式设置 JAVA_HOME，如果它是刚才安装的
-    if [ -d "/usr/lib/jvm/java-11-openjdk-amd64" ] && [ -z "$JAVA_HOME" ]; then
-        export JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"
-    fi
+    # 使用上一步动态探测到的路径
+    # 如果探测到的是 spark/hbase-spark，则 -pl spark/hbase-spark
+    # 如果探测到的是 hbase-spark (根目录下)，则 -pl hbase-spark
+
+    MODULE_ARG="-pl ${TARGET_MODULE_REL_PATH} -am"
 
     # 构造 Maven 命令
     # -pl spark/hbase-spark : 只构建 spark 连接器模块
@@ -172,17 +197,18 @@ compile_project() {
     # -Dhbase.version : 指定 HBase 版本
 
     CMD="mvn clean package -DskipTests \
-        -pl spark/hbase-spark -am \
+        ${MODULE_ARG} \
         -Dspark.version=$SPARK_VER \
         -Dscala.binary.version=$SCALA_BINARY_VER \
         -Dhbase.version=$HBASE_VER"
 
-    log_info "Executing: $CMD"
+    log_info "Executing Maven command:"
+    echo -e "${YELLOW}$CMD${NC}"
 
     if $CMD; then
         log_succ "Build Success!"
     else
-        log_err "Build Failed."
+        log_err "Build Failed. Check the module path and dependencies."
         exit 1
     fi
 }
@@ -215,7 +241,8 @@ deploy_artifact() {
         log_warn "No write permission for $TARGET_DIR. Trying with sudo..."
         sudo cp "$JAR_PATH" "$TARGET_DIR/$JAR_NAME"
     else
-        cp "$JAR_PATH" "$TARGET_DIR/$JAR_NAME"
+        cp "$JAR_PATH" "$TARGET_DIR/$JAR_NAME" || \
+            echo "Fail to deploy $JAR_PATH"
     fi
 
     FINAL_PATH="$TARGET_DIR/$JAR_NAME"
@@ -255,6 +282,7 @@ main() {
     check_tools
     detect_versions
     prepare_source
+    inspect_repo_structure
     compile_project
     deploy_artifact
 }
