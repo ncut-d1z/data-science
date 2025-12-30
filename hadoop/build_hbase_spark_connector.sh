@@ -2,7 +2,7 @@
 
 # ==============================================================================
 # 脚本名称: build_hbase_spark_connector.sh
-# 功能描述: 自动检测依赖，探查仓库结构，动态定位 Spark 模块并编译
+# 功能描述: 自动检测依赖，使用阿里云镜像加速，动态定位 Spark 模块并编译
 # 适配系统: Ubuntu 24.04 (支持自动 apt-get)
 # ==============================================================================
 
@@ -11,6 +11,8 @@ REPO_URL="https://github.com/apache/hbase-connectors.git"
 WORK_DIR="/tmp/hbase_connector_build_ws"
 TARGET_DIR="/opt/spark/jars"  # 默认部署路径，如果没有写权限会自动回退到当前目录
 CUSTOM_HBASE_VERSION="2.4.17" # 如果无法自动检测，使用此默认值
+# 临时 Maven 设置文件路径
+MAVEN_SETTINGS="/tmp/hbase_build_settings.xml"
 
 # --- 颜色输出工具 ---
 RED='\033[0;31m'
@@ -26,6 +28,38 @@ log_err() { echo -e "${RED}[ERROR] $(date '+%H:%M:%S') > $1${NC}"; }
 
 # 标记是否执行过 apt-get update
 APT_UPDATED=false
+
+# ==============================================================================
+# 0. 网络检查与配置生成 (关键修复)
+# ==============================================================================
+check_network_and_config() {
+    log_info "Checking network connectivity..."
+    # 尝试 ping 阿里云的一个公共 DNS，确认网是通的
+    if ! ping -c 1 223.5.5.5 &> /dev/null; then
+        log_warn "Network might be unreachable (ping 223.5.5.5 failed)."
+        log_warn "Please check your VirtualBox Network Adapter (NAT/Bridged)."
+    else
+        log_succ "Network connectivity confirmed."
+    fi
+
+    log_info "Generating Aliyun Maven Settings for speed..."
+    cat > "$MAVEN_SETTINGS" <<EOF
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                              http://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <mirrors>
+    <mirror>
+      <id>aliyunmaven</id>
+      <mirrorOf>*</mirrorOf>
+      <name>阿里云公共仓库</name>
+      <url>https://maven.aliyun.com/repository/public</url>
+    </mirror>
+  </mirrors>
+</settings>
+EOF
+    log_succ "Maven settings created at $MAVEN_SETTINGS"
+}
 
 # ==============================================================================
 # 1. 依赖检查 (Ubuntu 24.04)
@@ -139,7 +173,7 @@ prepare_source() {
 }
 
 # ==============================================================================
-# 4. 新增需求：探查仓库结构与动态定位
+# 4. 探查与动态定位
 # ==============================================================================
 inspect_repo_structure() {
     echo ""
@@ -176,11 +210,13 @@ inspect_repo_structure() {
 }
 
 # ==============================================================================
-# 5. 编译项目
+# 5. 编译项目 (加入 -s 参数)
 # ==============================================================================
 compile_project() {
-    log_info "Starting Maven build..."
+    log_info "Starting Maven Build (using Aliyun mirror)..."
     log_info "Target module: $TARGET_MODULE_REL_PATH"
+
+    cd "$WORK_DIR" || exit
 
     # 使用上一步动态探测到的路径
     # 如果探测到的是 spark/hbase-spark，则 -pl spark/hbase-spark
@@ -196,7 +232,8 @@ compile_project() {
     # -Dscala.binary.version : 指定 Scala 主版本
     # -Dhbase.version : 指定 HBase 版本
 
-    CMD="mvn clean package -DskipTests \
+    # 注意这里加入了 -s "$MAVEN_SETTINGS"
+    CMD="mvn clean package -DskipTests -s $MAVEN_SETTINGS \
         ${MODULE_ARG} \
         -Dspark.version=$SPARK_VER \
         -Dscala.binary.version=$SCALA_BINARY_VER \
@@ -273,12 +310,16 @@ deploy_artifact() {
     else
         log_warn "Could not determine DefaultSource path automatically. Please check the jar manually."
     fi
+
+    # 清理临时配置
+    rm -f "$MAVEN_SETTINGS"
 }
 
 # ==============================================================================
 # 主流程
 # ==============================================================================
 main() {
+    check_network_and_config
     check_tools
     detect_versions
     prepare_source
