@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source env.sh
+
 set -eux
 
 # 启动 SSH（该任务只能由 root 用户执行）
@@ -14,19 +16,25 @@ fi
 
 # 格式化 HDFS（该任务只能由 root 用户执行）
 # 注意：仅当 NameNode 数据目录不存在或为空时才格式化
-if [ ! -d "$HADOOP_NAMENODE/current" ] || [ -z "$(ls -A $HADOOP_NAMENODE/current 2>/dev/null)" ]; then
-    hdfs namenode -format
-    # 日志中如果有
-    #       INFO common.Storage: Storage directory /opt/hadoop/data/dfs/namenode has been successfully formatted.
-    # 就说明格式化动作成功了
-    echo "HDFS 已格式化"
-    # 本来是因为 hadoop 无法调用 hdfs，所以才以 root 用户的身份调用了 hdfs 命令，
-    # 后来却发现 hdfs 命令会产生归属于 root 用户的文件，使得 hadoop 用户无法使用，
-    # 因此必须递归地改变 $HADOOP_NAMENODE 目录下所有文件的权属
-    chown -R hadoop:hadoop $HADOOP_NAMENODE
-else
-    echo "HDFS 已格式化，跳过格式化步骤"
-fi
+
+# su - hbase -c "stop-hbase.sh"
+# su - zookeeper -c "echo 'deleteall /hbase' | /opt/zookeeper/bin/zkCli.sh -server localhost:2181"
+# su - hadoop -c "hdfs dfs -rm -r /hbase"
+
+rm -rf ${HADOOP_NAMENODE} ${HADOOP_DATANODE} ${HADOOP_TEMP} ${ZOO_DAT_DIR} ${ZOO_LOG_DIR}
+mkdir -p ${HADOOP_NAMENODE} ${HADOOP_DATANODE} ${HADOOP_TEMP} ${ZOO_DAT_DIR} ${ZOO_LOG_DIR}
+chown -R hadoop:hadoop ${HADOOP_NAMENODE} ${HADOOP_DATANODE} ${HADOOP_TEMP}
+chown -R zookeeper:zookeeper ${ZOO_DAT_DIR} ${ZOO_LOG_DIR}
+
+hdfs namenode -format
+# 日志中如果有
+#       INFO common.Storage: Storage directory /opt/hadoop/data/dfs/namenode has been successfully formatted.
+# 就说明格式化动作成功了
+echo "HDFS 已格式化"
+# 本来是因为 hadoop 无法调用 hdfs，所以才以 root 用户的身份调用了 hdfs 命令，
+# 后来却发现 hdfs 命令会产生归属于 root 用户的文件，使得 hadoop 用户无法使用，
+# 因此必须递归地改变 $HADOOP_NAMENODE 目录下所有文件的权属
+chown -R hadoop:hadoop $HADOOP_NAMENODE
 
 # 检查 Hadoop 是否已在运行（通过 jps 判断关键进程）
 hadoop_running=false
@@ -76,6 +84,7 @@ if ! jps | grep -q DataNode; then
     echo "DataNode 不在线！"
     exit 1
 fi
+# 如果 DataNode 不在线，就运行 `tail -n 20 $HADOOP_LOG/hadoop-hadoop-datanode-$(uname -n).log` 命令检查日志
 
 # 检查 ZooKeeper 是否已在运行
 zk_running=false
@@ -154,6 +163,8 @@ fi
 #   SLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]
 #   running master, logging to /opt/hbase/logs/hbase-hbase-master-c5cfad4f139d.out
 
+# su -s /bin/bash hbase -c "$HBASE_HOME/bin/stop-hbase.sh"
+
 # 检查 HRegionServer 是否在线
 if ! jps | grep -q HRegionServer; then
     echo "HRegionServer 未启动！"
@@ -222,7 +233,9 @@ if ! jps | grep -q HMaster; then
     exit 1
 fi
 
-bash /app/hbase_schema.sh
+sleep 60  # 等待 HBase 初始化
+
+echo "create 'traffic_data', 'info'" | hbase shell
 # 如果建表时，报错：
 #   ERROR: KeeperErrorCode = NoNode for /hbase/master
 # 那就执行
@@ -230,34 +243,3 @@ bash /app/hbase_schema.sh
 #   vi $HBASE_HOME/logs/hbase-hbase-master-$(uname -n).log
 
 echo "HBase 建表工作完成"
-
-# 检查 Spark 是否已在运行
-spark_running=false
-if jps | grep -q "org.apache.spark.deploy.master.Master" && jps | grep -q "org.apache.spark.deploy.worker.Worker"; then
-    spark_running=true
-fi
-
-if [ "$spark_running" = false ]; then
-    # 检查残留
-    if pgrep -f "org.apache.spark" > /dev/null; then
-        echo "检测到 Spark 残留进程，正在清理..."
-        su -s /bin/bash spark -c "$SPARK_HOME/sbin/stop-all.sh" || true
-        sleep 5
-        pkill -f "org.apache.spark" || true
-        sleep 3
-    fi
-    su -s /bin/bash spark -c "$SPARK_HOME/sbin/start-all.sh"
-    echo "Spark 服务已启动"
-else
-    echo "Spark 服务已在运行，跳过启动"
-fi
-# 预期输出：
-#   starting org.apache.spark.deploy.master.Master, logging to /opt/spark/logs/spark-spark-org.apache.spark.deploy.master.Master-1-c5cfad4f139d.out
-#   localhost: Warning: Permanently added 'localhost' (ED25519) to the list of known hosts.
-#   localhost: starting org.apache.spark.deploy.worker.Worker, logging to /opt/spark/logs/spark-spark-org.apache.spark.deploy.worker.Worker-1-c5cfad4f139d.out
-
-# 检查日志： vi $SPARK_HOME/logs/spark-spark-org.apache.spark.deploy.master.Master-1-$(uname -n).out
-# 检查日志： vi $SPARK_HOME/logs/spark-spark-org.apache.spark.deploy.worker.Worker-1-$(uname -n).out
-
-su -s /bin/bash spark -c "bash /app/spark_run.sh"
-echo "数据分析工作完成"

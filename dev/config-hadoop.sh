@@ -95,5 +95,7 @@ mkdir -p $HADOOP_SSH
 chmod 700 $HADOOP_SSH
 ssh-keygen -t rsa -C 'rsa key for hadoop' -N '' -P '' -f $HADOOP_SSH/id_rsa
 cat $HADOOP_SSH/id_rsa.pub >> $HADOOP_SSH/authorized_keys
+chmod 600 $HADOOP_SSH/id_rsa
+chmod 644 $HADOOP_SSH/id_rsa.pub
 chmod 600 $HADOOP_SSH/authorized_keys
 chown -R hadoop:hadoop $HADOOP_SSH

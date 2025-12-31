@@ -1,0 +1,38 @@
+package com.traffic;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.WritableComparable;
+import com.traffic.*;
+
+public class MyHadoopTrafficKey implements WritableComparable<MyHadoopTrafficKey> {
+    public String roadSegId;
+    public String dataTime;
+
+    public MyHadoopTrafficKey() {}
+    public MyHadoopTrafficKey(String id, String time) {
+        this.roadSegId = id == null ? "NULL" : id;
+        this.dataTime = time == null ? "0000-00-00 00:00:00" : time;
+    }
+
+    @Override
+    public void write(DataOutput out) throws IOException {
+        Text.writeString(out, roadSegId);
+        Text.writeString(out, dataTime);
+    }
+
+    @Override
+    public void readFields(DataInput in) throws IOException {
+        this.roadSegId = Text.readString(in);
+        this.dataTime = Text.readString(in);
+    }
+
+    @Override
+    public int compareTo(MyHadoopTrafficKey o) {
+        int cmp = this.roadSegId.compareTo(o.roadSegId);
+        if (cmp != 0) return cmp;
+        return this.dataTime.compareTo(o.dataTime);
+    }
+}
