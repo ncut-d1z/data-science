@@ -18,6 +18,8 @@ su -s /bin/bash hbase -c "$HBASE_HOME/bin/hbase-daemon.sh stop rest" >/dev/null 
 su -s /bin/bash hbase -c "$HBASE_HOME/bin/hbase-daemon.sh stop thrift" >/dev/null 2>&1
 # 停止 HBase 集群
 su -s /bin/bash hbase -c "$HBASE_HOME/bin/stop-hbase.sh" &
+# 清理 hbase 在 zookeeper 中产生的脏数据
+su - zookeeper -c "echo 'deleteall /hbase' | /opt/zookeeper/bin/zkCli.sh -server localhost:2181"
 # stop-hbase.sh 有时会卡住，设置一个等待超时，可以在后台运行
 HBASE_PID=$!
 sleep 10
