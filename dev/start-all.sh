@@ -293,3 +293,9 @@ echo "HBase 建表工作完成"
 #               报错 Master is initializing：说明 Master 卡住了。
 #               报错 Connection refused 或卡住不动：说明 HBase 服务挂了。
 #               报错 ERROR: KeeperErrorCode = NoNode for /hbase/master：说明 Master 没注册到 ZK。
+# 3. 检查是否已经填充数据
+#       执行以下命令
+#       ```
+#       echo "scan 'traffic_data', {LIMIT => 5}" | hbase shell
+#       ```
+#       打印 traffic_data 表中前 5 行数据
