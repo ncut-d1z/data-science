@@ -63,7 +63,7 @@ EOF
 cat > "$HADOOP_CONF/mapred-site.xml" << EOF
 <configuration>
     <property>
-    <!--指定mapreduce运行在yarn上-->
+        <!--指定mapreduce运行在yarn上-->
         <name>mapreduce.framework.name</name>
         <value>yarn</value>
     </property>
@@ -71,19 +71,42 @@ cat > "$HADOOP_CONF/mapred-site.xml" << EOF
         <name>mapred.job.tracker</name>
         <value>hdfs://localhost:9001</value>
     </property>
+    <!-- 添加 YARN 容器所需的环境变量 -->
+    <property>
+        <name>yarn.app.mapreduce.am.env</name>
+        <value>HADOOP_MAPRED_HOME=${HADOOP_HOME}</value>
+    </property>
+    <property>
+        <name>mapreduce.map.env</name>
+        <value>HADOOP_MAPRED_HOME=${HADOOP_HOME}</value>
+    </property>
+    <property>
+        <name>mapreduce.reduce.env</name>
+        <value>HADOOP_MAPRED_HOME=${HADOOP_HOME}</value>
+    </property>
 </configuration>
 EOF
 
 cat > "$HADOOP_CONF/yarn-site.xml" << EOF
 <configuration>
     <property>
-    <!--NodeManager获取数据的方式-->
+        <!--NodeManager获取数据的方式-->
         <name>yarn.nodemanager.aux-services</name>
         <value>mapreduce_shuffle</value>
     </property>
     <property>
         <name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
         <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+    </property>
+    <!-- 显式设置 YARN Classpath，避免环境差异导致找不到类 -->
+    <property>
+        <name>yarn.application.classpath</name>
+        <value>${HADOOP_HOME}/etc/hadoop,${HADOOP_HOME}/share/hadoop/common/*,${HADOOP_HOME}/share/hadoop/common/lib/*,${HADOOP_HOME}/share/hadoop/hdfs/*,${HADOOP_HOME}/share/hadoop/hdfs/lib/*,${HADOOP_HOME}/share/hadoop/mapreduce/*,${HADOOP_HOME}/share/hadoop/mapreduce/lib/*,${HADOOP_HOME}/share/hadoop/yarn/*,${HADOOP_HOME}/share/hadoop/yarn/lib/*</value>
+    </property>
+    <!-- 禁用虚拟内存检查（防止在资源受限的环境下误杀容器） -->
+    <property>
+        <name>yarn.nodemanager.vmem-check-enabled</name>
+        <value>false</value>
     </property>
 </configuration>
 EOF
