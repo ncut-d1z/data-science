@@ -245,9 +245,8 @@ if ! jps | grep -q HMaster; then
     exit 1
 fi
 
-sleep 60  # 等待 HBase 初始化
-
 if [ "$hdfs_already_formatted" = true ]; then
+    sleep 60  # 等待 HBase 初始化
 
     echo "create 'traffic_data', 'info'" | hbase shell
     echo "create 'traffic_agg_15min', 'info'" | hbase shell
