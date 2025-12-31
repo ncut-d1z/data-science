@@ -1,8 +1,17 @@
 #!/bin/bash
 
-source env.sh
+set -eux  # 遇到错误立即退出
 
-set -e  # 遇到错误立即退出
+# 检查 Hadoop, Zookeeper, HBase 是否已经运行
+jps | grep NameNode && \
+    jps | grep DataNode && \
+    jps | grep QuorumPeerMain && \
+    jps | grep HMaster && \
+    jps | grep HRegionServer && \
+    jps | grep ThriftServer && \
+    jps | grep RESTServer || exit 1
+
+source env.sh
 
 mvn -e clean package
 
