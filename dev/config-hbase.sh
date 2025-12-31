@@ -36,6 +36,14 @@ cat > "${HBASE_CONF}/hbase-site.xml" << EOF
 
   <!-- 绑定所有网络接口 -->
   <property>
+    <name>hbase.master.hostname</name>
+    <value>localhost</value>
+  </property>
+  <property>
+    <name>hbase.regionserver.hostname</name>
+    <value>localhost</value>
+  </property>
+  <property>
     <name>hbase.master.ipc.address</name>
     <value>0.0.0.0</value>
   </property>

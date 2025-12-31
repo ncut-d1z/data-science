@@ -204,6 +204,12 @@ fi
 # 停止 HBase 服务
 # su -s /bin/bash hbase -c "$HBASE_HOME/bin/stop-hbase.sh"
 
+echo "HMaster/HRegionServer 服务侦听地址:"
+cat <<EOF | /opt/zookeeper/bin/zkCli.sh -server localhost:2181 2>/dev/null | tail -n 20 | strings
+get /hbase/master
+get /hbase/meta-region-server
+EOF
+
 # 检查 Thrift 是否已在运行
 thrift_running=false
 if jps | grep -q ThriftServer; then
