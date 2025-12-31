@@ -17,8 +17,9 @@ source env.sh
 mvn -e clean package
 
 JAR=target/traffic-hadoop-all.jar
-
-export HADOOP_CLASSPATH=$HADOOP_CLASSPATH$(hbase mapredcp):/opt/postgresql-jdbc/postgresql-42.6.0.jar:$JAR
+HBASE_CP=$(hbase mapredcp)
+POSTGRES_CP=/opt/postgresql-jdbc/postgresql-42.6.0.jar
+export HADOOP_CLASSPATH=${HADOOP_CLASSPATH:-}:$HBASE_CP:$POSTGRES_CP:$JAR
 
 
 hadoop jar $JAR com.traffic.job.MyHadoopPreprocess
