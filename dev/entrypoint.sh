@@ -236,6 +236,7 @@ fi
 sleep 60  # 等待 HBase 初始化
 
 echo "create 'traffic_data', 'info'" | hbase shell
+echo "create 'traffic_agg_15min', 'info'" | hbase shell
 # 如果建表时，报错：
 #   ERROR: KeeperErrorCode = NoNode for /hbase/master
 # 那就执行
