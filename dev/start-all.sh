@@ -264,6 +264,32 @@ if [ "$hdfs_already_formatted" = true ]; then
     #   jps | grep HMaster
     #   vi $HBASE_HOME/logs/hbase-hbase-master-$(uname -n).log
 
+    # 执行命令 `echo "list" | hbase shell` 打印 HBase 数据库中所有表名
+
 fi
 
 echo "HBase 建表工作完成"
+
+# HBase 常见故障：
+# 1. HBase 处于安全模式，导致客户端等待
+#       要判断 HBase 是否处于安全模式，可以执行以下命令
+#       ```
+#       su - hadoop -c "hdfs dfsadmin -safemode get"
+#       ```
+#       返回 'Safe mode is OFF' 说明不在安全模式
+#       返回 'Safe mode is ON' 说明处于安全模式
+#       在安全模式下，HBase 无法写入数据，也无法更新元数据，会导致客户端一直等待
+#       要想退出安全模式，可以执行以下命令
+#       ```
+#       su - hadoop -c "hdfs dfsadmin -safemode leave"
+#       ```
+# 2. HBase 工作状态
+#       要了解 HBase 的工作状态，可以执行以下命令
+#       ```
+#       echo "status" | hbase shell
+#       ```
+#       正常情况：应该显示 1 active master, 0 backup masters, 1 servers, ...
+#       异常情况：
+#               报错 Master is initializing：说明 Master 卡住了。
+#               报错 Connection refused 或卡住不动：说明 HBase 服务挂了。
+#               报错 ERROR: KeeperErrorCode = NoNode for /hbase/master：说明 Master 没注册到 ZK。
