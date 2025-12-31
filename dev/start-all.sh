@@ -38,8 +38,14 @@ if [ ! -d "$HADOOP_NAMENODE/current" ] || [ -z "$(ls -A $HADOOP_NAMENODE/current
     # 后来却发现 hdfs 命令会产生归属于 root 用户的文件，使得 hadoop 用户无法使用，
     # 因此必须递归地改变 $HADOOP_NAMENODE 目录下所有文件的权属
     chown -R hadoop:hadoop $HADOOP_NAMENODE
-    # 在 HDFS 中，修改 /tmp 目录的访问权限
+
+    # 确保 HDFS 的 tmp 目录存在且权限开放
+    su - hadoop -c "hdfs dfs -mkdir -p /tmp"
     su - hadoop -c "hdfs dfs -chmod -R 777 /tmp"
+
+    # 同时也建议创建用户目录，防止 user=root 找不到主目录的报错
+    su - hadoop -c "hdfs dfs -mkdir -p /user/root"
+    su - hadoop -c "hdfs dfs -chown root:root /user/root"
 
     hdfs_already_formatted=true
 else
