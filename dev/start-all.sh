@@ -15,6 +15,7 @@ fi
 #    * Starting OpenBSD Secure Shell server sshd
 
 
+hdfs_already_formatted=false
 # 格式化 HDFS（该任务只能由 root 用户执行）
 # 注意：仅当 NameNode 数据目录不存在或为空时才格式化
 if [ ! -d "$HADOOP_NAMENODE/current" ] || [ -z "$(ls -A $HADOOP_NAMENODE/current 2>/dev/null)" ]; then
@@ -38,6 +39,7 @@ if [ ! -d "$HADOOP_NAMENODE/current" ] || [ -z "$(ls -A $HADOOP_NAMENODE/current
     # 因此必须递归地改变 $HADOOP_NAMENODE 目录下所有文件的权属
     chown -R hadoop:hadoop $HADOOP_NAMENODE
 
+    hdfs_already_formatted=true
 else
     echo "HDFS 已格式化，跳过格式化步骤"
 fi
@@ -245,12 +247,16 @@ fi
 
 sleep 60  # 等待 HBase 初始化
 
-echo "create 'traffic_data', 'info'" | hbase shell
-echo "create 'traffic_agg_15min', 'info'" | hbase shell
-# 如果建表时，报错：
-#   ERROR: KeeperErrorCode = NoNode for /hbase/master
-# 那就执行
-#   jps | grep HMaster
-#   vi $HBASE_HOME/logs/hbase-hbase-master-$(uname -n).log
+if [ "$hdfs_already_formatted" = true ]; then
+
+    echo "create 'traffic_data', 'info'" | hbase shell
+    echo "create 'traffic_agg_15min', 'info'" | hbase shell
+    # 如果建表时，报错：
+    #   ERROR: KeeperErrorCode = NoNode for /hbase/master
+    # 那就执行
+    #   jps | grep HMaster
+    #   vi $HBASE_HOME/logs/hbase-hbase-master-$(uname -n).log
+
+fi
 
 echo "HBase 建表工作完成"
