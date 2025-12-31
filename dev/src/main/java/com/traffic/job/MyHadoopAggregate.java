@@ -5,156 +5,134 @@ import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.*;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.filter.*;
+
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import com.traffic.*;
 
 public class MyHadoopAggregate {
 
-    // 用于存储15分钟聚合数据的类
     static class AggregatedData {
         String roadSegId;
-        String timeWindow;
-        double sumVolume;
-        double avgSpeed;
-        int count;
+        String window;
+        double sumVolume = 0;
+        double sumSpeed = 0;
+        int count = 0;
 
-        public AggregatedData(String roadSegId, String timeWindow) {
+        AggregatedData(String roadSegId, String window) {
             this.roadSegId = roadSegId;
-            this.timeWindow = timeWindow;
-            this.sumVolume = 0;
-            this.avgSpeed = 0;
-            this.count = 0;
+            this.window = window;
         }
 
-        public void addData(double volume, double speed) {
-            this.sumVolume += volume;
-            this.avgSpeed = (this.avgSpeed * this.count + speed) / (this.count + 1);
-            this.count++;
+        void add(double volume, double speed) {
+            sumVolume += volume;
+            sumSpeed += speed;
+            count++;
+        }
+
+        double avgSpeed() {
+            return count == 0 ? 0 : sumSpeed / count;
         }
     }
 
     public static void main(String[] args) throws Exception {
-        Configuration config = HBaseConfiguration.create();
-        Connection connection = ConnectionFactory.createConnection(config);
-        Table table = connection.getTable(TableName.valueOf("traffic_data"));
+        Configuration conf = HBaseConfiguration.create();
+        Connection conn = ConnectionFactory.createConnection(conf);
+        Table table = conn.getTable(TableName.valueOf("traffic_data"));
+        Table aggTable = conn.getTable(TableName.valueOf("traffic_agg_15min"));
 
-        // 获取所有数据并进行15分钟聚合
-        Map<String, AggregatedData> aggregatedResults = aggregateData(table);
-
-        // 将聚合结果写入新的HBase表
-        writeToHBaseAggregated(aggregatedResults, connection);
-
-        // 同时写入CSV文件
-        writeAggregatedToCSV(aggregatedResults, "./result/agg.csv");
-
-        table.close();
-        connection.close();
-    }
-
-    private static Map<String, AggregatedData> aggregateData(Table table) throws IOException {
-        Map<String, AggregatedData> aggregatedData = new ConcurrentHashMap<>();
+        File out = new File("./result/agg.csv");
+        out.getParentFile().mkdirs();
+        PrintWriter csvWriter = new PrintWriter(new FileWriter(out));
+        csvWriter.println("road_seg_id,time_window,sum_volume,avg_speed,count");
 
         Scan scan = new Scan();
-        scan.setCaching(1000);
+        scan.setCaching(500);
+        scan.setBatch(100);
 
         ResultScanner scanner = table.getScanner(scan);
-        for (Result result : scanner) {
-            String rowKey = Bytes.toString(result.getRow());
+
+        Map<String, AggregatedData> windowAgg = new HashMap<>();
+        String currentWindow = null;
+
+        for (Result r : scanner) {
+            String rowKey = Bytes.toString(r.getRow());
             String[] parts = rowKey.split("\\|");
-            if (parts.length >= 3) {
-                String timeStr = parts[0];
-                String roadId = parts[2];
+            if (parts.length < 3) continue;
 
-                String volumeStr = Bytes.toString(result.getValue(Bytes.toBytes("info"), Bytes.toBytes("volume")));
-                String speedStr = Bytes.toString(result.getValue(Bytes.toBytes("info"), Bytes.toBytes("speed")));
+            String timeStr = parts[0];
+            String roadId = parts[2];
+            String window = to15MinWindow(timeStr);
 
-                try {
-                    double volume = Double.parseDouble(volumeStr);
-                    double speed = Double.parseDouble(speedStr);
-
-                    // 将时间转换为15分钟窗口
-                    String timeWindow = getTimeWindow(timeStr, 15);
-                    String key = roadId + "|" + timeWindow;
-
-                    aggregatedData.computeIfAbsent(key, k -> new AggregatedData(roadId, timeWindow))
-                                  .addData(volume, speed);
-                } catch (NumberFormatException e) {
-                    // 跳过无效数据
-                }
+            if (currentWindow != null && !window.equals(currentWindow)) {
+                flushWindow(windowAgg, aggTable, csvWriter);
+                windowAgg.clear();
             }
+            currentWindow = window;
+
+            byte[] volBytes = r.getValue(Bytes.toBytes("info"), Bytes.toBytes("volume"));
+            byte[] spdBytes = r.getValue(Bytes.toBytes("info"), Bytes.toBytes("speed"));
+            if (volBytes == null || spdBytes == null) continue;
+
+            double volume = Double.parseDouble(Bytes.toString(volBytes));
+            double speed = Double.parseDouble(Bytes.toString(spdBytes));
+
+            windowAgg
+                .computeIfAbsent(roadId, k -> new AggregatedData(roadId, window))
+                .add(volume, speed);
         }
+
+        flushWindow(windowAgg, aggTable, csvWriter);
+
         scanner.close();
-
-        return aggregatedData;
+        csvWriter.close();
+        table.close();
+        aggTable.close();
+        conn.close();
     }
 
-    private static String getTimeWindow(String timeStr, int minutes) {
-        try {
-            // 解析时间字符串
-            SimpleDateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-            Date date = inputFormat.parse(timeStr);
-
-            // 计算15分钟窗口
-            Calendar cal = Calendar.getInstance();
-            cal.setTime(date);
-            int minute = cal.get(Calendar.MINUTE);
-            int windowStartMinute = (minute / minutes) * minutes;
-            cal.set(Calendar.MINUTE, windowStartMinute);
-            cal.set(Calendar.SECOND, 0);
-            cal.set(Calendar.MILLISECOND, 0);
-
-            SimpleDateFormat outputFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            return outputFormat.format(cal.getTime());
-        } catch (Exception e) {
-            return timeStr; // 如果解析失败，返回原时间
-        }
-    }
-
-    private static void writeToHBaseAggregated(Map<String, AggregatedData> aggregatedData, Connection connection) throws IOException {
-        Table aggTable = connection.getTable(TableName.valueOf("traffic_agg_15min"));
+    private static void flushWindow(
+            Map<String, AggregatedData> data,
+            Table aggTable,
+            PrintWriter csvWriter) throws IOException {
 
         List<Put> puts = new ArrayList<>();
-        for (Map.Entry<String, AggregatedData> entry : aggregatedData.entrySet()) {
-            AggregatedData data = entry.getValue();
-            String rowKey = data.roadSegId + "|" + data.timeWindow;
 
+        for (AggregatedData d : data.values()) {
+            String rowKey = d.roadSegId + "|" + d.window;
             Put put = new Put(Bytes.toBytes(rowKey));
-            put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("sum_volume_15min"),
-                         Bytes.toBytes(String.valueOf(data.sumVolume)));
-            put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("avg_speed_15min"),
-                         Bytes.toBytes(String.valueOf(data.avgSpeed)));
+            put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("sum_volume"),
+                    Bytes.toBytes(String.valueOf(d.sumVolume)));
+            put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("avg_speed"),
+                    Bytes.toBytes(String.valueOf(d.avgSpeed())));
             put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("count"),
-                         Bytes.toBytes(String.valueOf(data.count)));
-
+                    Bytes.toBytes(String.valueOf(d.count)));
             puts.add(put);
+
+            csvWriter.println(
+                    d.roadSegId + "," + d.window + "," +
+                    d.sumVolume + "," + d.avgSpeed() + "," + d.count
+            );
         }
 
         if (!puts.isEmpty()) {
             aggTable.put(puts);
         }
-
-        aggTable.close();
+        csvWriter.flush();
     }
 
-    private static void writeAggregatedToCSV(Map<String, AggregatedData> aggregatedData, String filename) throws IOException {
-        File file = new File(filename);
-        file.getParentFile().mkdirs(); // 创建目录
-
-        try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
-            writer.println("road_seg_id,time_window,sum_volume_15min,avg_speed_15min,count"); // CSV表头
-            for (Map.Entry<String, AggregatedData> entry : aggregatedData.entrySet()) {
-                AggregatedData data = entry.getValue();
-                String[] parts = entry.getKey().split("\\|");
-                String roadId = parts[0];
-                String timeWindow = parts[1];
-
-                writer.println(roadId + "," + timeWindow + "," +
-                              data.sumVolume + "," + data.avgSpeed + "," + data.count);
-            }
+    private static String to15MinWindow(String timeStr) {
+        try {
+            SimpleDateFormat in = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+            Calendar c = Calendar.getInstance();
+            c.setTime(in.parse(timeStr));
+            int m = c.get(Calendar.MINUTE);
+            c.set(Calendar.MINUTE, (m / 15) * 15);
+            c.set(Calendar.SECOND, 0);
+            c.set(Calendar.MILLISECOND, 0);
+            return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(c.getTime());
+        } catch (Exception e) {
+            return timeStr;
         }
     }
 }

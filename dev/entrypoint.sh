@@ -53,6 +53,9 @@ if [ "$hadoop_running" = false ]; then
     fi
     su - hadoop -c "$HADOOP_HOME/sbin/start-all.sh"
     echo "Hadoop 服务已启动"
+
+    su - hadoop -c "$HADOOP_HOME/bin/mapred --daemon start historyserver"
+    echo "Hadoop 日志已启动"
 else
     echo "Hadoop 服务已在运行，跳过启动"
 fi

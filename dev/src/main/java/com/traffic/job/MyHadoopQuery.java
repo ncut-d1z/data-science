@@ -1,104 +1,90 @@
 package com.traffic.job;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.filter.KeyOnlyFilter;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.filter.*;
+
 import java.io.*;
 import java.util.*;
-import com.traffic.*;
 
 public class MyHadoopQuery {
 
     public static void main(String[] args) throws Exception {
-        Configuration config = HBaseConfiguration.create();
-        Connection connection = ConnectionFactory.createConnection(config);
-        Table table = connection.getTable(TableName.valueOf("traffic_data"));
+        Configuration conf = HBaseConfiguration.create();
+        Connection conn = ConnectionFactory.createConnection(conf);
+        Table table = conn.getTable(TableName.valueOf("traffic_data"));
 
-        // 获取所有有效的 road_seg_id（去重）
-        List<String> roadIds = getAllRoadIds(table);
-
-        if (roadIds.isEmpty()) {
-            throw new RuntimeException("未从 HBase 中读取到任何有效的 road_seg_id");
+        String sampledRoadId = reservoirSampleRoadId(table);
+        if (sampledRoadId == null) {
+            throw new RuntimeException("未采样到 road_seg_id");
         }
 
-        // 随机抽样一个 road_seg_id
-        Random random = new Random();
-        String sampleRoadId = roadIds.get(random.nextInt(roadIds.size()));
-        System.out.println("[INFO] 随机抽样得到的 road_seg_id: " + sampleRoadId);
+        List<String> results = query(table, sampledRoadId,
+                "2024-03-01 08:00:00",
+                "2024-03-02 08:00:00");
 
-        // 给定监测点、时间段，查询流量数据
-        List<String> results = queryTrafficData(table, sampleRoadId, "2024-03-01 08:00:00", "2024-03-02 08:00:00");
-
-        // 将结果写入CSV文件
-        writeResultsToCSV(results, "./result/query.csv");
+        File out = new File("./result/query.csv");
+        out.getParentFile().mkdirs();
+        PrintWriter w = new PrintWriter(new FileWriter(out));
+        w.println("time,road_seg_id,volume,speed");
+        for (String r : results) {
+            w.println(r);
+        }
+        w.close();
 
         table.close();
-        connection.close();
+        conn.close();
     }
 
-    private static List<String> getAllRoadIds(Table table) throws IOException {
-        List<String> roadIds = new ArrayList<>();
+    private static String reservoirSampleRoadId(Table table) throws IOException {
         Scan scan = new Scan();
-        scan.setCaching(1000); // 设置缓存大小
+        scan.setFilter(new KeyOnlyFilter());
+        scan.setCaching(500);
 
         ResultScanner scanner = table.getScanner(scan);
-        for (Result result : scanner) {
-            String rowKey = Bytes.toString(result.getRow());
-            // 从rowkey中提取road_seg_id (格式: time|salt|road_seg_id)
-            String[] parts = rowKey.split("\\|");
-            if (parts.length >= 3) {
-                String roadId = parts[2];
-                if (!roadIds.contains(roadId)) {
-                    roadIds.add(roadId);
-                }
+        Random rand = new Random();
+        String selected = null;
+        int count = 0;
+
+        for (Result r : scanner) {
+            String[] parts = Bytes.toString(r.getRow()).split("\\|");
+            if (parts.length < 3) continue;
+            String roadId = parts[2];
+            count++;
+            if (rand.nextInt(count) == 0) {
+                selected = roadId;
             }
         }
         scanner.close();
-        return roadIds;
+        return selected;
     }
 
-    private static List<String> queryTrafficData(Table table, String roadId, String startTime, String endTime) throws IOException {
-        List<String> results = new ArrayList<>();
+    private static List<String> query(
+            Table table,
+            String roadId,
+            String start,
+            String end) throws IOException {
 
-        // 使用前缀过滤器获取特定roadId的数据
-        FilterList filterList = new FilterList(FilterList.Operator.MUST_PASS_ALL);
-        filterList.addFilter(new PrefixFilter(Bytes.toBytes(startTime.substring(0, 10)))); // 按日期前缀过滤
-
+        List<String> res = new ArrayList<>();
         Scan scan = new Scan();
-        scan.setFilter(filterList);
-        scan.setCaching(1000);
+        scan.setCaching(500);
 
         ResultScanner scanner = table.getScanner(scan);
-        for (Result result : scanner) {
-            String rowKey = Bytes.toString(result.getRow());
-            String[] parts = rowKey.split("\\|");
-            if (parts.length >= 3 && parts[2].equals(roadId)) {
-                String volume = Bytes.toString(result.getValue(Bytes.toBytes("info"), Bytes.toBytes("volume")));
-                String speed = Bytes.toString(result.getValue(Bytes.toBytes("info"), Bytes.toBytes("speed")));
-                String time = parts[0]; // 从rowkey中提取时间
+        for (Result r : scanner) {
+            String[] parts = Bytes.toString(r.getRow()).split("\\|");
+            if (parts.length < 3) continue;
+            if (!parts[2].equals(roadId)) continue;
 
-                // 检查时间是否在范围内
-                if (time.compareTo(startTime) >= 0 && time.compareTo(endTime) <= 0) {
-                    results.add(time + "," + roadId + "," + volume + "," + speed);
-                }
-            }
+            String time = parts[0];
+            if (time.compareTo(start) < 0 || time.compareTo(end) > 0) continue;
+
+            String vol = Bytes.toString(r.getValue(Bytes.toBytes("info"), Bytes.toBytes("volume")));
+            String spd = Bytes.toString(r.getValue(Bytes.toBytes("info"), Bytes.toBytes("speed")));
+            res.add(time + "," + roadId + "," + vol + "," + spd);
         }
         scanner.close();
-        return results;
-    }
-
-    private static void writeResultsToCSV(List<String> results, String filename) throws IOException {
-        File file = new File(filename);
-        file.getParentFile().mkdirs(); // 创建目录
-
-        try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
-            writer.println("time,road_seg_id,volume,speed"); // CSV表头
-            for (String result : results) {
-                writer.println(result);
-            }
-        }
+        return res;
     }
 }
