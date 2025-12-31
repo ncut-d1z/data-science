@@ -23,12 +23,6 @@ dataDir=$ZOO_DAT_DIR
 clientPort=2181
 # 最大客户端连接数
 maxClientCnxns=60
-
-# Zookeeper 的 AdminServer 与 Spark Master Web UI 都会尝试绑定 8080 端口
-# 换绑 8081 端口
-admin.serverPort=8081
-# 禁用 AdminServer
-admin.enableServer=false
 EOF
 
 echo "admin.enableServer=false" >> /opt/zookeeper/conf/zoo.cfg
