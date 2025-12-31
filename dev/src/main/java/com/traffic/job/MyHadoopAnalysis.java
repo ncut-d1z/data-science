@@ -1,6 +1,6 @@
 package com.traffic.job;
 
-import com.traffic.analysis.CorrAccumulator;
+import com.traffic.analysis.MyHadoopCorrAccumulator;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.client.*;
@@ -16,8 +16,8 @@ public class MyHadoopAnalysis {
         Connection conn = ConnectionFactory.createConnection(conf);
         Table table = conn.getTable(TableName.valueOf("traffic_data"));
 
-        Map<String, CorrAccumulator> volumeCorr = new HashMap<>();
-        Map<String, CorrAccumulator> speedCorr = new HashMap<>();
+        Map<String, MyHadoopCorrAccumulator> volumeCorr = new HashMap<>();
+        Map<String, MyHadoopCorrAccumulator> speedCorr = new HashMap<>();
 
         Map<String, Map<String, double[]>> buffer = new HashMap<>();
 
@@ -57,8 +57,8 @@ public class MyHadoopAnalysis {
         w.println("site_a,site_b,volume_corr,speed_corr");
 
         for (String k : volumeCorr.keySet()) {
-            CorrAccumulator v = volumeCorr.get(k);
-            CorrAccumulator s = speedCorr.get(k);
+            MyHadoopCorrAccumulator v = volumeCorr.get(k);
+            MyHadoopCorrAccumulator s = speedCorr.get(k);
             w.println(k.replace("|", ",") + "," +
                     v.correlation() + "," + s.correlation());
         }
@@ -71,8 +71,8 @@ public class MyHadoopAnalysis {
 
     private static void consume(
             Map<String, Map<String, double[]>> buffer,
-            Map<String, CorrAccumulator> volCorr,
-            Map<String, CorrAccumulator> spdCorr) {
+            Map<String, MyHadoopCorrAccumulator> volCorr,
+            Map<String, MyHadoopCorrAccumulator> spdCorr) {
 
         for (Map<String, double[]> snapshot : buffer.values()) {
             List<String> roads = new ArrayList<>(snapshot.keySet());
@@ -86,11 +86,11 @@ public class MyHadoopAnalysis {
                     double[] db = snapshot.get(b);
 
                     volCorr
-                        .computeIfAbsent(key, k -> new CorrAccumulator())
+                        .computeIfAbsent(key, k -> new MyHadoopCorrAccumulator())
                         .add(da[0], db[0]);
 
                     spdCorr
-                        .computeIfAbsent(key, k -> new CorrAccumulator())
+                        .computeIfAbsent(key, k -> new MyHadoopCorrAccumulator())
                         .add(da[1], db[1]);
                 }
             }

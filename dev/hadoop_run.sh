@@ -5,6 +5,7 @@ set -eux  # 遇到错误立即退出
 # 检查 Hadoop, Zookeeper, HBase 是否已经运行
 jps | grep NameNode && \
     jps | grep DataNode && \
+    jps | grep JobHistoryServer && \
     jps | grep QuorumPeerMain && \
     jps | grep HMaster && \
     jps | grep HRegionServer && \
