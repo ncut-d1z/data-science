@@ -14,27 +14,33 @@ fi
 # 预期输出：
 #    * Starting OpenBSD Secure Shell server sshd
 
+
 # 格式化 HDFS（该任务只能由 root 用户执行）
 # 注意：仅当 NameNode 数据目录不存在或为空时才格式化
+if [ ! -d "$HADOOP_NAMENODE/current" ] || [ -z "$(ls -A $HADOOP_NAMENODE/current 2>/dev/null)" ]; then
 
-# su - hbase -c "stop-hbase.sh"
-# su - zookeeper -c "echo 'deleteall /hbase' | /opt/zookeeper/bin/zkCli.sh -server localhost:2181"
-# su - hadoop -c "hdfs dfs -rm -r /hbase"
+    # su - hbase -c "stop-hbase.sh"
+    # su - zookeeper -c "echo 'deleteall /hbase' | /opt/zookeeper/bin/zkCli.sh -server localhost:2181"
+    # su - hadoop -c "hdfs dfs -rm -r /hbase"
 
-rm -rf ${HADOOP_NAMENODE} ${HADOOP_DATANODE} ${HADOOP_TEMP} ${ZOO_DAT_DIR} ${ZOO_LOG_DIR}
-mkdir -p ${HADOOP_NAMENODE} ${HADOOP_DATANODE} ${HADOOP_TEMP} ${ZOO_DAT_DIR} ${ZOO_LOG_DIR}
-chown -R hadoop:hadoop ${HADOOP_NAMENODE} ${HADOOP_DATANODE} ${HADOOP_TEMP}
-chown -R zookeeper:zookeeper ${ZOO_DAT_DIR} ${ZOO_LOG_DIR}
+    rm -rf ${HADOOP_NAMENODE} ${HADOOP_DATANODE} ${HADOOP_TEMP} ${ZOO_DAT_DIR} ${ZOO_LOG_DIR}
+    mkdir -p ${HADOOP_NAMENODE} ${HADOOP_DATANODE} ${HADOOP_TEMP} ${ZOO_DAT_DIR} ${ZOO_LOG_DIR}
+    chown -R hadoop:hadoop ${HADOOP_NAMENODE} ${HADOOP_DATANODE} ${HADOOP_TEMP}
+    chown -R zookeeper:zookeeper ${ZOO_DAT_DIR} ${ZOO_LOG_DIR}
 
-hdfs namenode -format
-# 日志中如果有
-#       INFO common.Storage: Storage directory /opt/hadoop/data/dfs/namenode has been successfully formatted.
-# 就说明格式化动作成功了
-echo "HDFS 已格式化"
-# 本来是因为 hadoop 无法调用 hdfs，所以才以 root 用户的身份调用了 hdfs 命令，
-# 后来却发现 hdfs 命令会产生归属于 root 用户的文件，使得 hadoop 用户无法使用，
-# 因此必须递归地改变 $HADOOP_NAMENODE 目录下所有文件的权属
-chown -R hadoop:hadoop $HADOOP_NAMENODE
+    hdfs namenode -format
+    # 日志中如果有
+    #       INFO common.Storage: Storage directory /opt/hadoop/data/dfs/namenode has been successfully formatted.
+    # 就说明格式化动作成功了
+    echo "HDFS 已格式化"
+    # 本来是因为 hadoop 无法调用 hdfs，所以才以 root 用户的身份调用了 hdfs 命令，
+    # 后来却发现 hdfs 命令会产生归属于 root 用户的文件，使得 hadoop 用户无法使用，
+    # 因此必须递归地改变 $HADOOP_NAMENODE 目录下所有文件的权属
+    chown -R hadoop:hadoop $HADOOP_NAMENODE
+
+else
+    echo "HDFS 已格式化，跳过格式化步骤"
+fi
 
 # 检查 Hadoop 是否已在运行（通过 jps 判断关键进程）
 hadoop_running=false
