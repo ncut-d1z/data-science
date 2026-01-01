@@ -23,6 +23,8 @@ dataDir=$ZOO_DAT_DIR
 clientPort=2181
 # 最大客户端连接数
 maxClientCnxns=60
+# 启用所有“四字命令（4lw）”的白名单
+4lw.commands.whitelist=*
 EOF
 
 echo "admin.enableServer=false" >> /opt/zookeeper/conf/zoo.cfg

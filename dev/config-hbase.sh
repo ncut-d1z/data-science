@@ -17,6 +17,7 @@ echo "export JAVA_HOME=${JAVA_HOME}" >> ${HBASE_CONF}/hbase-env.sh
 echo "export HBASE_MANAGES_ZK=false" >> ${HBASE_CONF}/hbase-env.sh
 echo "export HBASE_DISABLE_HADOOP_CLASSPATH_LOOKUP=true" >> ${HBASE_CONF}/hbase-env.sh
 
+# @see: https://github.com/apache/hbase/blob/master/hbase-common/src/main/resources/hbase-default.xml
 cat > "${HBASE_CONF}/hbase-site.xml" << EOF
 <?xml version="1.0"?>
 <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>

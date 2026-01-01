@@ -318,3 +318,17 @@ echo "HBase 建表工作完成"
 #       echo "scan 'traffic_data', {LIMIT => 5}" | hbase shell
 #       ```
 #       打印 traffic_data 表中前 5 行数据
+
+
+# 执行以下命令
+#       ```
+#       echo "ls /" | /opt/zookeeper/bin/zkCli.sh -server localhost:2181
+#       ```
+# 检查 Zookeeper 服务器状态
+# @see: https://www.runoob.com/w3cnote/zookeeper-sc-4lw.html
+
+# 执行以下命令
+#       ```
+#       echo "ls /" | /opt/zookeeper/bin/zkCli.sh -server localhost:2181
+#       ```
+# 检查 HBase 是否在 Zookeeper 上注册了结点
