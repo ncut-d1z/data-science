@@ -25,6 +25,15 @@ HBASE_PID=$!
 sleep 10
 # 如果还在运行，就不管它了，后面会强制杀
 
+echo "[INFO] 停止 Zookeeper 相关服务..."
+# 重新初始化 ZK 数据目录
+rm -rf $ZOO_DAT_DIR/*
+rm -rf $ZOO_LOG_DIR/*
+# 重新初始化 ZK 的 myid (单机模式其实不需要，但为了保险)
+mkdir -p $ZOO_DAT_DIR
+echo "1" > $ZOO_DAT_DIR/myid
+chown -R zookeeper:zookeeper $ZOO_DAT_DIR
+
 echo "[INFO] 停止 Hadoop 相关服务..."
 # 停止 JobHistoryServer
 su - hadoop -c "$HADOOP_HOME/bin/mapred --daemon stop historyserver" >/dev/null 2>&1

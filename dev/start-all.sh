@@ -15,6 +15,7 @@ fi
 #    * Starting OpenBSD Secure Shell server sshd
 
 
+
 hdfs_already_formatted=false
 # 格式化 HDFS（该任务只能由 root 用户执行）
 # 注意：仅当 NameNode 数据目录不存在或为空时才格式化
@@ -51,6 +52,45 @@ if [ ! -d "$HADOOP_NAMENODE/current" ] || [ -z "$(ls -A $HADOOP_NAMENODE/current
 else
     echo "HDFS 已格式化，跳过格式化步骤"
 fi
+
+
+
+# 检查 ZooKeeper 是否已在运行
+zk_running=false
+if jps | grep -q QuorumPeerMain; then
+    zk_running=true
+fi
+
+if [ "$zk_running" = false ]; then
+    # 检查是否有残留进程
+    if pgrep -f "QuorumPeerMain" > /dev/null; then
+        echo "检测到 ZooKeeper 残留进程，正在清理..."
+        su -s /bin/bash zookeeper -c "$ZOOKEEPER_HOME/bin/zkServer.sh stop" || true
+        sleep 3
+        pkill -f "QuorumPeerMain" || true
+        sleep 2
+    fi
+    su -s /bin/bash zookeeper -c "$ZOOKEEPER_HOME/bin/zkServer.sh start"
+    # 如果遇到故障（例如找不到进程、看不见端口），看不到日志，那就改为运行：
+    #   su -s /bin/bash zookeeper -c "$ZOOKEEPER_HOME/bin/zkServer.sh start-foreground"
+    echo "ZooKeeper 服务已启动"
+else
+    echo "ZooKeeper 服务已在运行，跳过启动"
+fi
+# 预期输出：
+#   ZooKeeper JMX enabled by default
+#   Using config: /opt/zookeeper/bin/../conf/zoo.cfg
+#   Starting zookeeper ... STARTED
+
+# 检查 Zookeeper 是否在线
+if ! jps | grep -q QuorumPeerMain; then
+    echo "ZooKeeper 启动失败！"
+    # 检查日志： vi /home/zookeeper/logs/zookeeper-zookeeper-server-$(uname -n).out
+    exit 1
+fi
+# 检查日志： vi /home/zookeeper/logs/zookeeper-zookeeper-server-$(uname -n).out
+
+
 
 # 检查 Hadoop 是否已在运行（通过 jps 判断关键进程）
 hadoop_running=false
@@ -106,40 +146,7 @@ if ! jps | grep -q DataNode; then
 fi
 # 如果 DataNode 不在线，就运行 `tail -n 20 $HADOOP_LOG/hadoop-hadoop-datanode-$(uname -n).log` 命令检查日志
 
-# 检查 ZooKeeper 是否已在运行
-zk_running=false
-if jps | grep -q QuorumPeerMain; then
-    zk_running=true
-fi
 
-if [ "$zk_running" = false ]; then
-    # 检查是否有残留进程
-    if pgrep -f "QuorumPeerMain" > /dev/null; then
-        echo "检测到 ZooKeeper 残留进程，正在清理..."
-        su -s /bin/bash zookeeper -c "$ZOOKEEPER_HOME/bin/zkServer.sh stop" || true
-        sleep 3
-        pkill -f "QuorumPeerMain" || true
-        sleep 2
-    fi
-    su -s /bin/bash zookeeper -c "$ZOOKEEPER_HOME/bin/zkServer.sh start"
-    # 如果遇到故障（例如找不到进程、看不见端口），看不到日志，那就改为运行：
-    #   su -s /bin/bash zookeeper -c "$ZOOKEEPER_HOME/bin/zkServer.sh start-foreground"
-    echo "ZooKeeper 服务已启动"
-else
-    echo "ZooKeeper 服务已在运行，跳过启动"
-fi
-# 预期输出：
-#   ZooKeeper JMX enabled by default
-#   Using config: /opt/zookeeper/bin/../conf/zoo.cfg
-#   Starting zookeeper ... STARTED
-
-# 检查 Zookeeper 是否在线
-if ! jps | grep -q QuorumPeerMain; then
-    echo "ZooKeeper 启动失败！"
-    # 检查日志： vi /home/zookeeper/logs/zookeeper-zookeeper-server-$(uname -n).out
-    exit 1
-fi
-# 检查日志： vi /home/zookeeper/logs/zookeeper-zookeeper-server-$(uname -n).out
 
 # 为 HBase 准备磁盘空间
 # 先检查 /hbase 是否已存在
@@ -210,6 +217,8 @@ get /hbase/master
 get /hbase/meta-region-server
 EOF
 
+
+
 # 检查 Thrift 是否已在运行
 thrift_running=false
 if jps | grep -q ThriftServer; then
@@ -231,6 +240,8 @@ else
 fi
 # 检查日志： vi $HBASE_HOME/logs/hbase-hbase-thrift-$(uname -n).out
 
+
+
 # 检查 REST 是否已在运行
 rest_running=false
 if jps | grep -q RESTServer; then
@@ -251,6 +262,8 @@ else
     echo "HBase REST 服务器已在运行，跳过启动"
 fi
 # 检查日志： vi $HBASE_HOME/logs/hbase-hbase-rest-$(uname -n).out
+
+
 
 # 为 HBase 建表（该任务只能由 root 用户执行）
 # 先确保 HMaster 在线
