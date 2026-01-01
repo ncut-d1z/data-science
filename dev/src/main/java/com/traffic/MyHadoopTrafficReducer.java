@@ -98,7 +98,7 @@ public class MyHadoopTrafficReducer extends TableReducer<MyHadoopTrafficKey, MyH
         put.addColumn(Bytes.toBytes(CF_INFO), Bytes.toBytes("volume"), Bytes.toBytes(String.valueOf(vol)));
         put.addColumn(Bytes.toBytes(CF_INFO), Bytes.toBytes("speed"), Bytes.toBytes(String.valueOf(spd)));
 
-        context.write(null, put);
+        context.write(new ImmutableBytesWritable(Bytes.toBytes(rowKeyStr)), put);
     }
 
     private String getSalt(String roadId) {

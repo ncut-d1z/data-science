@@ -10,9 +10,9 @@ public class MyHadoopGroupingComparator extends WritableComparator {
     }
 
     @Override
-    public int compare(WritableComparable w1, WritableComparable w2) {
-        MyHadoopTrafficKey k1 = (MyHadoopTrafficKey) w1;
-        MyHadoopTrafficKey k2 = (MyHadoopTrafficKey) w2;
+    public int compare(Object a, Object b) {
+        MyHadoopTrafficKey k1 = (MyHadoopTrafficKey) a;
+        MyHadoopTrafficKey k2 = (MyHadoopTrafficKey) b;
         return k1.roadSegId.compareTo(k2.roadSegId);
     }
 }

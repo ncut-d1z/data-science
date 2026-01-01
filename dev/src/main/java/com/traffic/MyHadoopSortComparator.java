@@ -10,9 +10,7 @@ public class MyHadoopSortComparator extends WritableComparator {
     }
 
     @Override
-    public int compare(WritableComparable w1, WritableComparable w2) {
-        MyHadoopTrafficKey k1 = (MyHadoopTrafficKey) w1;
-        MyHadoopTrafficKey k2 = (MyHadoopTrafficKey) w2;
-        return k1.compareTo(k2);
+    public int compare(Object a, Object b) {
+        return ((MyHadoopTrafficKey) a).compareTo((MyHadoopTrafficKey) b);
     }
 }

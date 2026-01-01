@@ -332,3 +332,9 @@ echo "HBase 建表工作完成"
 #       echo "ls /" | /opt/zookeeper/bin/zkCli.sh -server localhost:2181
 #       ```
 # 检查 HBase 是否在 Zookeeper 上注册了结点
+
+# 执行以下命令
+#       ```
+#       echo "ls /hbase/rs" | /opt/zookeeper/bin/zkCli.sh -server localhost:2181
+#       ```
+# 检查 RegionServer 是否在 Zookeeper 服务器注册结点

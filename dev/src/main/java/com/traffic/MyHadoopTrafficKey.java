@@ -35,4 +35,17 @@ public class MyHadoopTrafficKey implements WritableComparable<MyHadoopTrafficKey
         if (cmp != 0) return cmp;
         return this.dataTime.compareTo(o.dataTime);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof MyHadoopTrafficKey)) return false;
+        MyHadoopTrafficKey k = (MyHadoopTrafficKey) o;
+        return roadSegId.equals(k.roadSegId) && dataTime.equals(k.dataTime);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * roadSegId.hashCode() + dataTime.hashCode();
+    }
+
 }
