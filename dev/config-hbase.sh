@@ -51,6 +51,22 @@ cat > "${HBASE_CONF}/hbase-site.xml" << EOF
     <name>hbase.regionserver.ipc.address</name>
     <value>0.0.0.0</value>
   </property>
+  <property>
+    <name>hbase.master.port</name>
+    <value>16000</value>
+  </property>
+  <property>
+    <name>hbase.master.info.port</name>
+    <value>16010</value>
+  </property>
+  <property>
+    <name>hbase.regionserver.port</name>
+    <value>16201</value>
+  </property>
+  <property>
+    <name>hbase.regionserver.info.port</name>
+    <value>16301</value>
+  </property>
 
   <!-- ZooKeeper配置 -->
   <property>

@@ -1,9 +1,5 @@
 #!/bin/bash
 
-if [ -f "stop-all.sh" ]; then
-    bash stop-all.sh
-fi
-
 # 加载环境变量
 if [ -f "env.sh" ]; then
     source env.sh
