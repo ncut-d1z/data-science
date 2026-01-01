@@ -7,6 +7,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.io.*;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 
 public class MyHadoopMapRedEx {
 
