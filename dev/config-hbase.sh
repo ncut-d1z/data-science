@@ -73,6 +73,10 @@ cat > "${HBASE_CONF}/hbase-site.xml" << EOF
     <name>hbase.zookeeper.property.clientPort</name>
     <value>2181</value>
   </property>
+  <property>
+    <name>hbase.zookeeper.property.dataDir</name>
+    <value>/home/zookeeper</value>
+  </property>
 
   <!-- 关闭集群间复制（单机环境） -->
   <property>
