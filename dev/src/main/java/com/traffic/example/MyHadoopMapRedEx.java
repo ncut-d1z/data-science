@@ -61,8 +61,8 @@ public class MyHadoopMapRedEx {
             // 设置结果行的 RowKey 为 "row"
             Put p = new Put(Bytes.toBytes("row"));
 
-            // 写入数据：列族 "f", 列名 "c", 值 sum (即总行数)
-            p.addColumn(Bytes.toBytes("f"), Bytes.toBytes("c"), Bytes.toBytes(sum));
+            // 写入数据：列族 "info", 列名 "c", 值 sum (即总行数)
+            p.addColumn(Bytes.toBytes("info"), Bytes.toBytes("c"), Bytes.toBytes(sum));
 
             // 将 Put 对象写入上下文，TableReducer 会自动将其提交到 HBase
             c.write(null, p);
@@ -96,7 +96,7 @@ public class MyHadoopMapRedEx {
                 job);
 
         // 5. 初始化 Reducer 任务 (写入 HBase)
-        // 注意：目标表 "traffic_test_out" 必须预先存在，且包含列族 "f"
+        // 注意：目标表 "traffic_test_out" 必须预先存在，且包含列族 "info"
         TableMapReduceUtil.initTableReducerJob(
                 "traffic_test_out",  // 输出表名：结果写到哪张表
                 R.class,             // Reducer 类
