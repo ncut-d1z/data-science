@@ -9,6 +9,9 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.Job;
 
 /**
  * 这是一个用于统计 HBase 表行数的 MapReduce 示例程序。
@@ -27,7 +30,10 @@ public class MyHadoopMapRedEx {
         /**
          * map 方法：每读取到 HBase 表中的一行数据，就会执行一次此方法。
          */
-        public void map(ImmutableBytesWritable k, org.apache.hadoop.hbase.client.Result v, Context c)
+        @Override
+        public void map(ImmutableBytesWritable k,
+                        org.apache.hadoop.hbase.client.Result v,
+                        Context c)
                 throws java.io.IOException, InterruptedException {
 
             // 逻辑非常简单：不管读到什么数据，都输出一个固定的 Key "cnt" 和数值 1。
@@ -43,12 +49,13 @@ public class MyHadoopMapRedEx {
      * 输入：Key (Text), Value (IntWritable) -> 来自 Mapper 的输出
      * 输出：Key (ImmutableBytesWritable) -> HBase 的 RowKey（通常由 TableReducer 内部处理，这里传 null 即可）
      */
-    public static class R extends TableReducer<Text, IntWritable, ImmutableBytesWritable> {
+    public static class R
+            extends TableReducer<Text, IntWritable, ImmutableBytesWritable> {
 
-        /**
-         * reduce 方法：接收 Mapper 发来的所有 key 为 "cnt" 的 value 列表 (1, 1, 1, ...)。
-         */
-        public void reduce(Text k, Iterable<IntWritable> v, Context c)
+        @Override
+        public void reduce(Text k,
+                           Iterable<IntWritable> v,
+                           Context c)
                 throws java.io.IOException, InterruptedException {
 
             int sum = 0;
@@ -60,12 +67,12 @@ public class MyHadoopMapRedEx {
             // 创建 HBase 的写入对象 Put
             // 设置结果行的 RowKey 为 "row"
             Put p = new Put(Bytes.toBytes("row"));
+            p.addColumn(Bytes.toBytes("info"),
+                        Bytes.toBytes("c"),
+                        Bytes.toBytes(sum));
 
-            // 写入数据：列族 "info", 列名 "c", 值 sum (即总行数)
-            p.addColumn(Bytes.toBytes("info"), Bytes.toBytes("c"), Bytes.toBytes(sum));
-
-            // 将 Put 对象写入上下文，TableReducer 会自动将其提交到 HBase
-            c.write(null, p);
+            // 不再写 null key
+            c.write(new ImmutableBytesWritable(p.getRow()), p);
         }
     }
 
@@ -73,7 +80,7 @@ public class MyHadoopMapRedEx {
      * Driver (主程序)
      * 负责配置 Job 的运行参数、Mapper、Reducer 以及输入输出路径。
      */
-    public static void main(String[] a) throws Exception {
+    public static void main(String[] args) throws Exception {
         // 1. 创建 HBase 配置对象，自动加载 hbase-site.xml 等配置
         Configuration conf = HBaseConfiguration.create();
 

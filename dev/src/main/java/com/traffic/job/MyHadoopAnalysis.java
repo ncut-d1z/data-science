@@ -9,64 +9,78 @@ import org.apache.hadoop.hbase.util.Bytes;
 import java.io.*;
 import java.util.*;
 
+/**
+ * 离线相关性分析
+ */
 public class MyHadoopAnalysis {
 
     public static void main(String[] args) throws Exception {
+
         Configuration conf = HBaseConfiguration.create();
-        Connection conn = ConnectionFactory.createConnection(conf);
-        Table table = conn.getTable(TableName.valueOf("traffic_data"));
 
-        Map<String, MyHadoopCorrAccumulator> volumeCorr = new HashMap<>();
-        Map<String, MyHadoopCorrAccumulator> speedCorr = new HashMap<>();
+        Connection conn = null;
+        Table table = null;
+        ResultScanner scanner = null;
+        PrintWriter w = null;
 
-        Map<String, Map<String, double[]>> buffer = new HashMap<>();
+        try {
+            conn = ConnectionFactory.createConnection(conf);
+            table = conn.getTable(TableName.valueOf("traffic_data"));
 
-        Scan scan = new Scan();
-        scan.setCaching(500);
-        ResultScanner scanner = table.getScanner(scan);
+            Map<String, MyHadoopCorrAccumulator> volumeCorr = new HashMap<>();
+            Map<String, MyHadoopCorrAccumulator> speedCorr  = new HashMap<>();
+            Map<String, Map<String, double[]>> buffer = new HashMap<>();
 
-        for (Result r : scanner) {
-            String[] parts = Bytes.toString(r.getRow()).split("\\|");
-            if (parts.length < 3) continue;
+            Scan scan = new Scan();
+            scan.setCaching(500);
+            scanner = table.getScanner(scan);
 
-            String time = parts[0];
-            String road = parts[2];
+            for (Result r : scanner) {
+                String[] parts = Bytes.toString(r.getRow()).split("\\|");
+                if (parts.length < 3) continue;
 
-            double volume = Double.parseDouble(
-                    Bytes.toString(r.getValue(Bytes.toBytes("info"), Bytes.toBytes("volume")))
-            );
-            double speed = Double.parseDouble(
-                    Bytes.toString(r.getValue(Bytes.toBytes("info"), Bytes.toBytes("speed")))
-            );
+                String time = parts[0];
+                String road = parts[2];
 
-            buffer
-                .computeIfAbsent(time, k -> new HashMap<>())
-                .put(road, new double[]{volume, speed});
+                double volume = Double.parseDouble(
+                        Bytes.toString(r.getValue(
+                                Bytes.toBytes("info"),
+                                Bytes.toBytes("volume"))));
 
-            if (buffer.size() > 1000) {
-                consume(buffer, volumeCorr, speedCorr);
-                buffer.clear();
+                double speed = Double.parseDouble(
+                        Bytes.toString(r.getValue(
+                                Bytes.toBytes("info"),
+                                Bytes.toBytes("speed"))));
+
+                buffer
+                    .computeIfAbsent(time, k -> new HashMap<>())
+                    .put(road, new double[]{volume, speed});
+
+                if (buffer.size() > 1000) {
+                    consume(buffer, volumeCorr, speedCorr);
+                    buffer.clear();
+                }
             }
+
+            consume(buffer, volumeCorr, speedCorr);
+
+            File out = new File("./result/corr.csv");
+            out.getParentFile().mkdirs();
+            w = new PrintWriter(new FileWriter(out));
+            w.println("site_a,site_b,volume_corr,speed_corr");
+
+            for (String k : volumeCorr.keySet()) {
+                w.println(k.replace("|", ",") + "," +
+                          volumeCorr.get(k).correlation() + "," +
+                          speedCorr.get(k).correlation());
+            }
+
+        } finally {
+            if (w       != null) w.close();
+            if (scanner != null) scanner.close();
+            if (table   != null) table.close();
+            if (conn    != null) conn.close();
         }
-
-        consume(buffer, volumeCorr, speedCorr);
-
-        File out = new File("./result/corr.csv");
-        out.getParentFile().mkdirs();
-        PrintWriter w = new PrintWriter(new FileWriter(out));
-        w.println("site_a,site_b,volume_corr,speed_corr");
-
-        for (String k : volumeCorr.keySet()) {
-            MyHadoopCorrAccumulator v = volumeCorr.get(k);
-            MyHadoopCorrAccumulator s = speedCorr.get(k);
-            w.println(k.replace("|", ",") + "," +
-                    v.correlation() + "," + s.correlation());
-        }
-
-        w.close();
-        scanner.close();
-        table.close();
-        conn.close();
     }
 
     private static void consume(
@@ -86,11 +100,13 @@ public class MyHadoopAnalysis {
                     double[] db = snapshot.get(b);
 
                     volCorr
-                        .computeIfAbsent(key, k -> new MyHadoopCorrAccumulator())
+                        .computeIfAbsent(key,
+                                k -> new MyHadoopCorrAccumulator())
                         .add(da[0], db[0]);
 
                     spdCorr
-                        .computeIfAbsent(key, k -> new MyHadoopCorrAccumulator())
+                        .computeIfAbsent(key,
+                                k -> new MyHadoopCorrAccumulator())
                         .add(da[1], db[1]);
                 }
             }

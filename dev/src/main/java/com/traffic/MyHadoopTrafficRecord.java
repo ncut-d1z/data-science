@@ -6,20 +6,31 @@ import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.mapreduce.lib.db.DBWritable;
 import com.traffic.*;
 
-public class MyHadoopTrafficRecord implements DBWritable, WritableComparable<MyHadoopTrafficRecord> {
+/**
+ * Traffic Record：
+ * - 既是 DBWritable（JDBC 读）
+ * - 又是 WritableComparable（MR Shuffle）
+ */
+public class MyHadoopTrafficRecord
+        implements DBWritable, WritableComparable<MyHadoopTrafficRecord> {
+
     public String road_seg_id;
     public String data_time;
     public double volume;
     public double speed;
-    public boolean isVolumeNull = false;
-    public boolean isSpeedNull = false;
-    public boolean isIdNull = false;
 
+    // 数据质量标记
+    public boolean isVolumeNull = false;
+    public boolean isSpeedNull  = false;
+    public boolean isIdNull     = false;
+
+    @Override
     public void write(PreparedStatement statement) throws SQLException {
         statement.setString(1, road_seg_id);
         statement.setString(2, data_time);
@@ -27,17 +38,18 @@ public class MyHadoopTrafficRecord implements DBWritable, WritableComparable<MyH
         statement.setDouble(4, speed);
     }
 
-    public void readFields(ResultSet resultSet) throws SQLException {
-        this.road_seg_id = resultSet.getString("road_seg_id");
-        if (resultSet.wasNull()) this.isIdNull = true;
+    @Override
+    public void readFields(ResultSet rs) throws SQLException {
+        road_seg_id = rs.getString("road_seg_id");
+        if (rs.wasNull()) isIdNull = true;
 
-        this.data_time = resultSet.getString("data_time");
+        data_time = rs.getString("data_time");
 
-        this.volume = resultSet.getDouble("volume");
-        if (resultSet.wasNull()) this.isVolumeNull = true;
+        volume = rs.getDouble("volume");
+        if (rs.wasNull()) isVolumeNull = true;
 
-        this.speed = resultSet.getDouble("speed");
-        if (resultSet.wasNull()) this.isSpeedNull = true;
+        speed = rs.getDouble("speed");
+        if (rs.wasNull()) isSpeedNull = true;
     }
 
     @Override
@@ -53,16 +65,20 @@ public class MyHadoopTrafficRecord implements DBWritable, WritableComparable<MyH
 
     @Override
     public void readFields(DataInput in) throws IOException {
-        this.road_seg_id = Text.readString(in);
-        if (this.road_seg_id.isEmpty()) this.road_seg_id = null;
-        this.data_time = Text.readString(in);
-        this.volume = in.readDouble();
-        this.speed = in.readDouble();
-        this.isVolumeNull = in.readBoolean();
-        this.isSpeedNull = in.readBoolean();
-        this.isIdNull = in.readBoolean();
+        road_seg_id = Text.readString(in);
+        if (road_seg_id.isEmpty()) road_seg_id = null;
+
+        data_time = Text.readString(in);
+        volume = in.readDouble();
+        speed  = in.readDouble();
+        isVolumeNull = in.readBoolean();
+        isSpeedNull  = in.readBoolean();
+        isIdNull     = in.readBoolean();
     }
 
+    /**
+     * 仅用于排序（通常不会用到）
+     */
     @Override
     public int compareTo(MyHadoopTrafficRecord o) {
         return this.data_time.compareTo(o.data_time);

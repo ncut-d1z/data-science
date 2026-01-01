@@ -2,7 +2,11 @@ package com.traffic.analysis;
 
 /**
  * 在线 Pearson 相关系数累加器
- * 不存样本，只存统计量，避免 OOM
+ *
+ * 特点：
+ * - 不保存样本
+ * - O(1) 内存
+ * - 适合大规模数据
  */
 public class MyHadoopCorrAccumulator {
 
@@ -15,8 +19,8 @@ public class MyHadoopCorrAccumulator {
 
     public void add(double x, double y) {
         n++;
-        sumX += x;
-        sumY += y;
+        sumX  += x;
+        sumY  += y;
         sumXX += x * x;
         sumYY += y * y;
         sumXY += x * y;
