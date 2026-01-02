@@ -34,7 +34,7 @@ echo '[global]' > /root/.pip/pip.conf
 echo 'index-url = https://mirrors.aliyun.com/pypi/simple/' >> /root/.pip/pip.conf
 echo 'trusted-host = mirrors.aliyun.com' >> /root/.pip/pip.conf
 python3 -m pip install --upgrade pip || \
-    python3 -m venv .venv && bash .venv/bin/activate || \
+    apt-get install -y python3-venv && python3 -m venv .venv && bash .venv/bin/activate || \
     echo "Fail to install pip packages!"
 python3 -m pip install --no-cache-dir \
     numpy \
