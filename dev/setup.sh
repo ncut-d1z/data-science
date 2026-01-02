@@ -33,14 +33,16 @@ mkdir -p /root/.pip
 echo '[global]' > /root/.pip/pip.conf
 echo 'index-url = https://mirrors.aliyun.com/pypi/simple/' >> /root/.pip/pip.conf
 echo 'trusted-host = mirrors.aliyun.com' >> /root/.pip/pip.conf
-python3 -m pip install --upgrade pip
+python3 -m pip install --upgrade pip || \
+    python3 -m venv .venv && bash .venv/bin/activate || \
+    echo "Fail to install pip packages!"
 python3 -m pip install --no-cache-dir \
     numpy \
     pandas \
     matplotlib \
-    psycopg2-binary \
-    happybase \
-    pyspark
+    psycopg2-binary || \
+    echo "Fail to install pip packages!"
+# python3 -m pip install --no-cache-dir happybase
 
 curl -f -L -O "${HADOOP_URL}"
 tar -xzf ${HADOOP_TGZ} -C /opt
