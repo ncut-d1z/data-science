@@ -40,13 +40,13 @@ python3 -m pip install --upgrade pip || \
 apt-get install -y \
         python3-numpy \
         python3-pandas \
-        python3-matplotlib || \
+        python3-matplotlib \
+        python3-psycopg2 || \
     python3 -m pip install --no-cache-dir \
         numpy \
         pandas \
-        matplotlib || true
-python3 -m pip install --no-cache-dir \
-    psycopg2-binary || \
+        matplotlib \
+        psycopg2-binary || \
     echo "Use 'python3 -m venv .venv && bash .venv/bin/activate' to install other pip packages!"
 
 # python3 -m pip install --no-cache-dir happybase
