@@ -40,14 +40,6 @@ if [ ! -d "$HADOOP_NAMENODE/current" ] || [ -z "$(ls -A $HADOOP_NAMENODE/current
     # 因此必须递归地改变 $HADOOP_NAMENODE 目录下所有文件的权属
     chown -R hadoop:hadoop $HADOOP_NAMENODE
 
-    # 确保 HDFS 的 tmp 目录存在且权限开放
-    su - hadoop -c "hdfs dfs -mkdir -p /tmp"
-    su - hadoop -c "hdfs dfs -chmod -R 777 /tmp"
-
-    # 同时也建议创建用户目录，防止 user=root 找不到主目录的报错
-    su - hadoop -c "hdfs dfs -mkdir -p /user/root"
-    su - hadoop -c "hdfs dfs -chown root:root /user/root"
-
     hdfs_already_formatted=true
 else
     echo "HDFS 已格式化，跳过格式化步骤"
@@ -146,6 +138,14 @@ if ! jps | grep -q DataNode; then
 fi
 # 如果 DataNode 不在线，就运行 `tail -n 20 $HADOOP_LOG/hadoop-hadoop-datanode-$(uname -n).log` 命令检查日志
 
+
+# 确保 HDFS 的 tmp 目录存在且权限开放
+su - hadoop -c "hdfs dfs -mkdir -p /tmp"
+su - hadoop -c "hdfs dfs -chmod -R 777 /tmp"
+
+# 同时也建议创建用户目录，防止 user=root 找不到主目录的报错
+su - hadoop -c "hdfs dfs -mkdir -p /user/root"
+su - hadoop -c "hdfs dfs -chown root:root /user/root"
 
 
 # 为 HBase 准备磁盘空间
