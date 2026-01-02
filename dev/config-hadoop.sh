@@ -113,6 +113,8 @@ EOF
 
 # 配置 SSH
 HADOOP_SSH=/home/hadoop/.ssh
+# 在生成前先删除旧文件，避免 ssh-keygen 交互询问覆盖
+rm -rf $HADOOP_SSH
 # 为 hadoop 用户配置 SSH 无密码登录
 mkdir -p $HADOOP_SSH
 chmod 700 $HADOOP_SSH
