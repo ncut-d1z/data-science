@@ -51,9 +51,14 @@ python3 -m pip install --no-cache-dir \
 
 # python3 -m pip install --no-cache-dir happybase
 
-curl -f -L -O "${HADOOP_URL}"
+if [ -f "${HADOOP_TGZ}" ]; then
+    echo "Found cached ${HADOOP_TGZ}, skipping download."
+else
+    curl -f -L -O "${HADOOP_URL}"
+fi
+rm -rf "/opt/hadoop-${HADOOP_VERSION}" /opt/hadoop
 tar -xzf ${HADOOP_TGZ} -C /opt
-mv /opt/hadoop-${HADOOP_VERSION} /opt/hadoop
+mv "/opt/hadoop-${HADOOP_VERSION}" /opt/hadoop
 
 # 彻底清理并重置 Hadoop 用户
 # 查询并强制杀死残留进程
@@ -79,9 +84,14 @@ bash config-hadoop.sh
 
 hadoop version
 
-curl -f -L -O "${ZOOKEEPER_URL}"
+if [ -f "${ZOOKEEPER_TGZ}" ]; then
+    echo "Found cached ${ZOOKEEPER_TGZ}, skipping download."
+else
+    curl -f -L -O "${ZOOKEEPER_URL}"
+fi
+rm -rf "/opt/apache-zookeeper-${ZOOKEEPER_VERSION}-bin"
 tar -xzf ${ZOOKEEPER_TGZ} -C /opt
-mv /opt/apache-zookeeper-${ZOOKEEPER_VERSION}-bin /opt/zookeeper
+mv "/opt/apache-zookeeper-${ZOOKEEPER_VERSION}-bin" /opt/zookeeper
 
 # 彻底清理并重置 Zookeeper 用户
 ZK_PIDS=$(ps -u zookeeper -o pid= 2>/dev/null || true)
@@ -99,9 +109,14 @@ chown -R zookeeper:zookeeper /home/zookeeper
 
 bash config-zookeeper.sh
 
-curl -f -L -O "${HBASE_URL}"
+if [ -f "${HBASE_TGZ}" ]; then
+    echo "Found cached ${HBASE_TGZ}, skipping download."
+else
+    curl -f -L -O "${HBASE_URL}"
+fi
+rm -rf "/opt/hbase-${HBASE_VERSION}"
 tar -xzf ${HBASE_TGZ} -C /opt
-mv /opt/hbase-${HBASE_VERSION} /opt/hbase
+mv "/opt/hbase-${HBASE_VERSION}" /opt/hbase
 
 # 彻底清理并重置 hbase 用户
 HBASE_PIDS=$(ps -u hbase -o pid= 2>/dev/null || true)
