@@ -9,6 +9,7 @@ sed -i 's@http://security.ubuntu.com@http://mirrors.aliyun.com@g' /etc/apt/sourc
 apt-get clean
 apt-get update
 apt-get upgrade -y
+# 确保安装 procps 以使用 ps 命令
 apt-get install -y \
     vim \
     bash \
@@ -20,7 +21,8 @@ apt-get install -y \
     libpq-dev \
     python3 python3-pip python3-dev \
     openssh-server openssh-client \
-    net-tools
+    net-tools \
+    procps
 
 mkdir -p /var/run/sshd
 sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
@@ -34,8 +36,7 @@ echo '[global]' > /root/.pip/pip.conf
 echo 'index-url = https://mirrors.aliyun.com/pypi/simple/' >> /root/.pip/pip.conf
 echo 'trusted-host = mirrors.aliyun.com' >> /root/.pip/pip.conf
 python3 -m pip install --upgrade pip || \
-    apt-get install -y python3-venv || \
-    echo "Fail to install pip packages!"
+    apt-get install -y python3-venv || true
 apt-get install -y \
         python3-numpy \
         python3-pandas \
@@ -43,12 +44,10 @@ apt-get install -y \
     python3 -m pip install --no-cache-dir \
         numpy \
         pandas \
-        matplotlib || \
-    echo "Fail to install pip packages!"
+        matplotlib || true
 python3 -m pip install --no-cache-dir \
     psycopg2-binary || \
-    echo "Fail to install pip packages!"
-echo "Use 'python3 -m venv .venv && bash .venv/bin/activate' to install other pip packages!"
+    echo "Use 'python3 -m venv .venv && bash .venv/bin/activate' to install other pip packages!"
 
 # python3 -m pip install --no-cache-dir happybase
 
@@ -56,7 +55,20 @@ curl -f -L -O "${HADOOP_URL}"
 tar -xzf ${HADOOP_TGZ} -C /opt
 mv /opt/hadoop-${HADOOP_VERSION} /opt/hadoop
 
+# 彻底清理并重置 Hadoop 用户
+# 查询并强制杀死残留进程
+# ps -u 指定用户, -o pid= 仅输出PID不带表头, 2>/dev/null 屏蔽用户不存在的错误
+HADOOP_PIDS=$(ps -u hadoop -o pid= 2>/dev/null || true)
+if [ -n "$HADOOP_PIDS" ]; then
+    echo "Killing running hadoop processes: $HADOOP_PIDS"
+    # 这里的 kill -9 不带引号以允许参数展开，|| true 防止报错
+    kill -9 $HADOOP_PIDS || true
+fi
+# 强制删除用户
+userdel -f hadoop || true
+# 强制删除家目录
 rm -rf /home/hadoop/
+# 重建用户
 useradd -m -d "/home/hadoop" -s "/bin/bash" \
     --comment "pseudo-user" "hadoop"
 passwd -l hadoop
@@ -71,6 +83,13 @@ curl -f -L -O "${ZOOKEEPER_URL}"
 tar -xzf ${ZOOKEEPER_TGZ} -C /opt
 mv /opt/apache-zookeeper-${ZOOKEEPER_VERSION}-bin /opt/zookeeper
 
+# 彻底清理并重置 Zookeeper 用户
+ZK_PIDS=$(ps -u zookeeper -o pid= 2>/dev/null || true)
+if [ -n "$ZK_PIDS" ]; then
+    echo "Killing running zookeeper processes: $ZK_PIDS"
+    kill -9 $ZK_PIDS || true
+fi
+userdel -f zookeeper || true
 rm -rf /home/zookeeper/
 useradd -m -d "/home/zookeeper" -s "/bin/bash" \
     --comment "pseudo-user" "zookeeper"
@@ -84,7 +103,15 @@ curl -f -L -O "${HBASE_URL}"
 tar -xzf ${HBASE_TGZ} -C /opt
 mv /opt/hbase-${HBASE_VERSION} /opt/hbase
 
+# 彻底清理并重置 hbase 用户
+HBASE_PIDS=$(ps -u hbase -o pid= 2>/dev/null || true)
+if [ -n "$HBASE_PIDS" ]; then
+    echo "Killing running hbase processes: $HBASE_PIDS"
+    kill -9 $HBASE_PIDS || true
+fi
+userdel -f hbase || true
 rm -rf /home/hbase/
+# 新建 hbase 用户
 useradd -m -d "/home/hbase" -s "/bin/bash" \
     --comment "pseudo-user" "hbase"
 passwd -l hbase
