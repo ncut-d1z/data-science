@@ -19,6 +19,7 @@ apt-get install -y \
     tar \
     gcc \
     libpq-dev \
+    postgresql postgresql-contrib \
     python3 python3-pip python3-dev \
     openssh-server openssh-client \
     net-tools \
@@ -30,6 +31,9 @@ sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_con
 
 java -version
 python3 -V && python3 -m pip --version
+systemctl status postgresql
+echo "\copyright" | su - postgres -c "psql"
+echo "ALTER USER postgres WITH PASSWORD 'postgres';" | su - postgres -c "psql"
 
 mkdir -p /root/.pip
 echo '[global]' > /root/.pip/pip.conf
