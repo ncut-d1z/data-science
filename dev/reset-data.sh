@@ -1,6 +1,8 @@
 #!/bin/bash
 # 配置脚本（在容器执行）
 
+source env.sh
+
 # 1. 删除 Hadoop 数据目录
 rm -rf ${HADOOP_TEMP}/*
 rm -rf ${HADOOP_NAMENODE}/*
