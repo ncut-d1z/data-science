@@ -34,20 +34,29 @@ echo '[global]' > /root/.pip/pip.conf
 echo 'index-url = https://mirrors.aliyun.com/pypi/simple/' >> /root/.pip/pip.conf
 echo 'trusted-host = mirrors.aliyun.com' >> /root/.pip/pip.conf
 python3 -m pip install --upgrade pip || \
-    apt-get install -y python3-venv && python3 -m venv .venv && bash .venv/bin/activate || \
+    apt-get install -y python3-venv || \
+    echo "Fail to install pip packages!"
+apt-get install -y \
+        python3-numpy \
+        python3-pandas \
+        python3-matplotlib || \
+    python3 -m pip install --no-cache-dir \
+        numpy \
+        pandas \
+        matplotlib || \
     echo "Fail to install pip packages!"
 python3 -m pip install --no-cache-dir \
-    numpy \
-    pandas \
-    matplotlib \
     psycopg2-binary || \
     echo "Fail to install pip packages!"
+echo "Use 'python3 -m venv .venv && bash .venv/bin/activate' to install other pip packages!"
+
 # python3 -m pip install --no-cache-dir happybase
 
 curl -f -L -O "${HADOOP_URL}"
 tar -xzf ${HADOOP_TGZ} -C /opt
 mv /opt/hadoop-${HADOOP_VERSION} /opt/hadoop
 
+rm -rf /home/hadoop/
 useradd -m -d "/home/hadoop" -s "/bin/bash" \
     --comment "pseudo-user" "hadoop"
 passwd -l hadoop
@@ -62,6 +71,7 @@ curl -f -L -O "${ZOOKEEPER_URL}"
 tar -xzf ${ZOOKEEPER_TGZ} -C /opt
 mv /opt/apache-zookeeper-${ZOOKEEPER_VERSION}-bin /opt/zookeeper
 
+rm -rf /home/zookeeper/
 useradd -m -d "/home/zookeeper" -s "/bin/bash" \
     --comment "pseudo-user" "zookeeper"
 passwd -l zookeeper
@@ -70,24 +80,11 @@ chown -R zookeeper:zookeeper /home/zookeeper
 
 bash config-zookeeper.sh
 
-curl -f -L -O "${SPARK_URL}"
-tar -xzf ${SPARK_TGZ} -C /opt
-mv /opt/spark-${SPARK_VERSION}-bin-hadoop${SPARK_HADOOP_VERSION} /opt/spark
-
-useradd -m -d "/home/spark" -s "/bin/bash" \
-    --comment "pseudo-user" "spark"
-passwd -l spark
-chown -R spark:spark ${SPARK_HOME}
-chown -R spark:spark /home/spark
-
-bash config-spark.sh
-
-spark-submit --version
-
 curl -f -L -O "${HBASE_URL}"
 tar -xzf ${HBASE_TGZ} -C /opt
 mv /opt/hbase-${HBASE_VERSION} /opt/hbase
 
+rm -rf /home/hbase/
 useradd -m -d "/home/hbase" -s "/bin/bash" \
     --comment "pseudo-user" "hbase"
 passwd -l hbase
@@ -98,12 +95,6 @@ bash config-hbase.sh
 
 hbase version
 
-mkdir -p /app/spark_result
-chown -R spark:spark /app/spark_result
-mkdir -p /app/preprocess
-chown -R hbase:hbase /app/preprocess
-
 echo "export PATH=$PATH" >> /home/hadoop/.profile
 echo "export PATH=$PATH" >> /home/zookeeper/.profile
-echo "export PATH=$PATH" >> /home/spark/.profile
 echo "export PATH=$PATH" >> /home/hbase/.profile
