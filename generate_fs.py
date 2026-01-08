@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import os
 
 # 配置
@@ -53,13 +56,16 @@ def generate_fs_text():
                 except KeyError:
                     continue
 
+                if not lang:
+                    continue
+
                 try:
                     # 尝试以 UTF-8 读取文件
                     with open(full_path, 'r', encoding='utf-8') as in_f:
                         content = in_f.read()
 
                     # 写入文件名
-                    out_f.write(f"{rel_path}:\n")
+                    out_f.write(f"文件 {rel_path} 的内容为:\n")
 
                     # 写入代码块开始
                     out_f.write(f"```{lang}\n")

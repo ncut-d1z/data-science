@@ -1,3 +1,5 @@
+#!/bin/bash
+
 export HADOOP_VERSION=3.3.6
 export ZOOKEEPER_VERSION=3.7.2
 export HBASE_VERSION=2.5.13

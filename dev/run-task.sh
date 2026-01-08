@@ -18,12 +18,12 @@ mvn -e clean package
 
 JAR=target/traffic-hadoop-all.jar
 HBASE_CP=$(hbase mapredcp)
-POSTGRES_CP=/opt/postgresql-jdbc/postgresql-42.6.0.jar
+POSTGRES_CP=/root/.m2/repository/org/postgresql/postgresql/42.6.0/postgresql-42.6.0.jar
 export HADOOP_CLASSPATH=${HADOOP_CLASSPATH:-}:$HBASE_CP:$POSTGRES_CP:$JAR
 
 
-hadoop jar $JAR com.traffic.example.MyHadoopMapRedEx
-# hadoop jar $JAR com.traffic.job.MyHadoopPreprocess
-# hadoop jar $JAR com.traffic.job.MyHadoopQuery
-# hadoop jar $JAR com.traffic.job.MyHadoopAggregate
-# hadoop jar $JAR com.traffic.job.MyHadoopAnalysis
+# hadoop jar $JAR com.traffic.example.MyHadoopMapRedEx
+hadoop jar $JAR com.traffic.job.MyHadoopPreprocess
+hadoop jar $JAR com.traffic.job.MyHadoopQuery
+hadoop jar $JAR com.traffic.job.MyHadoopAggregate
+hadoop jar $JAR com.traffic.job.MyHadoopAnalysis

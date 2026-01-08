@@ -1,5 +1,7 @@
 #!/bin/bash
 
+ls data/*.csv >/dev/null 2>&1 || { echo "请把 CSV 数据文件解压到当前目录的 data 子目录下!" >&2; exit 1; }
+
 set -eux
 
 source env.sh
@@ -23,6 +25,7 @@ apt-get install -y \
     python3 python3-pip python3-dev \
     openssh-server openssh-client \
     net-tools \
+    maven \
     procps
 
 mkdir -p /var/run/sshd
@@ -33,7 +36,15 @@ java -version
 python3 -V && python3 -m pip --version
 systemctl status postgresql
 echo "\copyright" | su - postgres -c "psql"
+
+# 初始化 postgres 数据库
 echo "ALTER USER postgres WITH PASSWORD 'postgres';" | su - postgres -c "psql"
+echo "CREATE DATABASE traffic_db;" | su - postgres -c "psql -U postgres"
+echo "CREATE TABLE raw_traffic_data ( road_seg_id VARCHAR(100), data_time VARCHAR(20), volume INTEGER, speed FLOAT );" | \
+    su - postgres -c "psql -U postgres -d traffic_db"
+awk 'NR==1 || FNR>1' data/*.csv > data-merged.csv
+grep -v "road_seg_id" data-merged.csv | \
+    su - postgres -c "psql -U postgres -d traffic_db -c '\copy raw_traffic_data(road_seg_id, data_time, volume, speed) FROM STDIN WITH (FORMAT csv, HEADER false)'"
 
 mkdir -p /root/.pip
 echo '[global]' > /root/.pip/pip.conf
@@ -45,6 +56,7 @@ apt-get install -y \
         python3-numpy \
         python3-pandas \
         python3-matplotlib \
+        python3-sqlalchemy \
         python3-psycopg2 || \
     python3 -m pip install --no-cache-dir \
         numpy \
